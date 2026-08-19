@@ -8,7 +8,7 @@ BarWidget {
 
   // ---- Configuration (shell.json entry settings) ----
   readonly property string mugMac: String(setting("mac", "") || "").trim().toUpperCase()
-  readonly property int pollIntervalSec: Math.max(10, parseInt(setting("pollIntervalSec", 30), 10) || 30)
+  readonly property int pollIntervalSec: Math.max(10, parseInt(setting("pollIntervalSec", 10), 10) || 10)
   readonly property bool refreshOnOpen: setting("refreshOnOpen", true) === true
 
   // ---- Live mug state (from the status bridge) ----

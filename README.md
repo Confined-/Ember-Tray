@@ -47,7 +47,7 @@ widget picks the changes up on the next reload:
 | Setting               | Default | Meaning                                             |
 |-----------------------|---------|-----------------------------------------------------|
 | `mac`                 | (empty) | The mug's MAC address, e.g. `AA:BB:CC:DD:EE:FF`     |
-| `pollIntervalSec`     | `30`    | How often to read the mug, in seconds (min 10)      |
+| `pollIntervalSec`     | `10`    | How often to read the mug, in seconds (min 10)      |
 | `unit`                | (empty) | `C` or `F`; empty uses the mug's own stored setting |
 | `refreshOnOpen`       | `true`  | Re-read the mug whenever the panel opens            |
 

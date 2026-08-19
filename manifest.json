@@ -20,7 +20,7 @@
     "defaultSection": "right",
     "defaults": {
       "mac": "",
-      "pollIntervalSec": 30,
+      "pollIntervalSec": 10,
       "unit": "",
       "refreshOnOpen": true
     },
@@ -38,7 +38,7 @@
         "min": 10,
         "max": 3600,
         "step": 5,
-        "defaultValue": 30
+        "defaultValue": 10
       },
       {
         "key": "unit",
