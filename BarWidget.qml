@@ -23,9 +23,12 @@ BarWidget {
   property bool heaterOn: false
   property string lastError: ""
   property bool refreshPending: false
+  property bool commandPending: false
+  property string pendingCommand: ""
+  property bool bridgeReady: false
   property int failStreak: 0
   property var pendingSetTemp: ""
-  readonly property bool settingTarget: setTempProc.running || root.pendingSetTemp !== ""
+  readonly property bool settingTarget: root.commandPending || root.pendingSetTemp !== ""
 
   readonly property bool configured: mugMac !== ""
   property string unitPreference: String(setting("unit", "") || "").toUpperCase()
@@ -79,19 +82,12 @@ BarWidget {
     unit = String(unit || "").toUpperCase()
     if (unit !== "C" && unit !== "F") return
     root.unitPreference = unit
-    var bar = root.bar
-    if (!bar || !bar.shell || typeof bar.shell.mutateShellConfig !== "function") return
-    bar.shell.mutateShellConfig(function(config) {
-      var layout = config.bar && config.bar.layout
-      if (!layout) return
-      ["left", "center", "right"].forEach(function(region) {
-        var entries = layout[region]
-        if (!Array.isArray(entries)) return
-        for (var i = 0; i < entries.length; i++) {
-          if (entries[i] && entries[i].id === root.moduleName) entries[i].unit = unit
-        }
-      })
-    })
+    var entry = { id: root.moduleName }
+    for (var key in root.settings) if (key !== "id") entry[key] = root.settings[key]
+    entry.unit = unit
+    root.settings = entry
+    if (root.bar && root.bar.shell && typeof root.bar.shell.updateEntryInline === "function")
+      root.bar.shell.updateEntryInline(root.moduleName, entry)
   }
 
   function injectPanel() {
@@ -103,7 +99,7 @@ BarWidget {
     if ("hostWidget" in target) target.hostWidget = root
   }
 
-  // ---- Bridge invocation ----
+  // ---- Bridge invocation (persistent repl process) ----
   function scriptPath() {
     var url = String(Qt.resolvedUrl("ember_ble.py"))
     if (url.indexOf("file://localhost/") === 0) url = url.substring("file://localhost/".length)
@@ -115,41 +111,63 @@ BarWidget {
     }
   }
 
+  function startBridge() {
+    if (bridgeProc.running || !root.configured) return
+    bridgeProc.command = ["python3", root.scriptPath(), "repl", "--mac", root.mugMac]
+    bridgeProc.running = true
+  }
+
+  // Send one command, or queue it until the bridge is up. Only one command is
+  // in flight at a time so BlueZ never sees concurrent connects from us.
+  function request(line) {
+    if (!root.configured) return
+    if (bridgeProc.running && root.bridgeReady) {
+      root.commandPending = true
+      responseWatchdog.restart()
+      bridgeProc.write(line + "\n")
+    } else {
+      root.pendingCommand = line
+      if (!bridgeProc.running) root.startBridge()
+    }
+  }
+
   function refresh() {
     if (!root.configured) {
       root.connected = false
       return
     }
-    // Never run a status poll while a set-temp is in flight: BlueZ rejects a
-    // second simultaneous connect with Error.InProgress.
-    if (setTempProc.running) {
-      root.refreshPending = true
-      return
-    }
-    if (statusProc.running) {
+    if (root.commandPending) {
       root.refreshPending = true
       return
     }
     root.refreshPending = false
-    statusProc.command = ["python3", root.scriptPath(), "status", "--mac", root.mugMac]
-    statusProc.running = true
+    root.request("status")
+  }
+
+  function num(value, fallback) {
+    var n = Number(value)
+    return isFinite(n) ? n : fallback
   }
 
   function applyState(data) {
     root.connected = true
     root.failStreak = 0
-    root.currentTemp = parseFloat(data.currentTemp) || 0
-    root.targetTemp = parseFloat(data.targetTemp) || 0
-    root.battery = parseInt(data.battery, 10) || 0
+    root.currentTemp = root.num(data.currentTemp, 0)
+    root.targetTemp = root.num(data.targetTemp, 0)
+    root.battery = root.num(data.battery, 0)
     root.charging = data.charging === true
     root.liquidState = String(data.liquidState || "")
-    root.liquidCode = parseInt(data.liquidCode, 10) || -1
-    root.heaterOn = data.heaterOn !== false
+    // liquidCode 0 (Standby) is a valid state; only a missing value is -1.
+    root.liquidCode = root.num(data.liquidCode, -1)
+    // The bridge always reports heaterOn; missing/undefined means off.
+    root.heaterOn = data.heaterOn === true
     root.mugUnit = data.unit === "F" ? "F" : "C"
     root.lastError = ""
   }
 
-  function applyStatus(raw) {
+  // Route one response line from the bridge. Status and set-temp both return
+  // the full mug state on success, so they share the same happy path.
+  function onReplLine(raw) {
     var text = String(raw || "").trim()
     if (!text) return
     var data
@@ -158,86 +176,73 @@ BarWidget {
     } catch (e) {
       return
     }
-    if (data.connected === true) {
+    root.commandPending = false
+    responseWatchdog.stop()
+    if (data.ok !== undefined) {
+      if (data.ok === true) root.applyState(data)
+      else root.lastError = String(data.error || "set failed")
+    } else if (data.connected === true) {
       root.applyState(data)
     } else {
-      // A single transient poll failure (e.g. reconnect right after a write)
-      // shouldn't flash the mug offline; only flip state on consecutive misses.
+      // A single transient miss shouldn't flash the mug offline; only flip
+      // state on consecutive failures.
       root.failStreak++
       root.lastError = String(data.error || "not reachable")
       if (root.failStreak >= 2) root.connected = false
     }
+    root.deferNext()
+  }
+
+  // A poll/set deferred while a command was in flight runs now that the
+  // bridge is idle again.
+  function deferNext() {
+    if (root.pendingSetTemp !== "") {
+      var value = root.pendingSetTemp
+      root.pendingSetTemp = ""
+      root.setTargetTemp(value)
+    } else if (root.refreshPending) {
+      root.refreshPending = false
+      Qt.callLater(root.refresh)
+    }
   }
 
   function setTargetTemp(displayValue) {
-    if (!root.configured || setTempProc.running) return
-    // Wait for an in-flight status poll instead of racing it; the preview
-    // stays shown (via pendingSetTemp) until the set can actually run.
-    if (statusProc.running) {
+    if (!root.configured) return
+    if (root.commandPending) {
       root.pendingSetTemp = displayValue
       return
     }
     root.pendingSetTemp = ""
-    var celsius = root.toCelsius(displayValue)
-    setTempProc.command = ["python3", root.scriptPath(), "set-temp", "--mac", root.mugMac, "--value", celsius.toFixed(2)]
-    setTempProc.running = true
+    root.request("set-temp " + root.toCelsius(displayValue).toFixed(2))
   }
 
-  function applySetTemp(raw) {
-    var text = String(raw || "").trim()
-    if (!text) return
-    var data
-    try {
-      data = JSON.parse(text)
-    } catch (e) {
-      return
-    }
-    if (data.ok === true) {
-      root.applyState(data)
-    } else {
-      root.lastError = String(data.error || "set failed")
-    }
-  }
-
-  // ---- Status poll ----
+  // ---- Persistent bridge process ----
   Process {
-    id: statusProc
-    stdout: StdioCollector {
-      waitForEnd: true
-      onStreamFinished: root.applyStatus(text)
+    id: bridgeProc
+    stdinEnabled: true
+    stdout: SplitParser {
+      splitMarker: "\n"
+      onRead: (data) => root.onReplLine(data)
+    }
+    onStarted: {
+      root.bridgeReady = true
+      if (root.pendingCommand !== "") {
+        var line = root.pendingCommand
+        root.pendingCommand = ""
+        root.commandPending = true
+        responseWatchdog.restart()
+        bridgeProc.write(line + "\n")
+      }
     }
     onRunningChanged: {
-      if (statusProc.running) statusWatchdog.restart()
-      else statusWatchdog.stop()
+      if (!bridgeProc.running) root.bridgeReady = false
     }
     onExited: function(exitCode) {
-      if (exitCode !== 0) root.lastError = "status exited " + exitCode
-      if (root.pendingSetTemp !== "") {
-        var v = root.pendingSetTemp
-        root.pendingSetTemp = ""
-        root.setTargetTemp(v)
-      } else if (root.refreshPending) {
-        Qt.callLater(root.refresh)
-      }
+      root.commandPending = false
+      root.pendingCommand = ""
+      if (exitCode !== 0 && root.lastError === "") root.lastError = "bridge exited " + exitCode
+      if (root.configured) restartTimer.restart()
     }
-  }
-
-  // ---- Target temperature write ----
-  Process {
-    id: setTempProc
-    stdout: StdioCollector {
-      waitForEnd: true
-      onStreamFinished: root.applySetTemp(text)
-    }
-    onExited: function(exitCode) {
-      if (root.refreshPending) {
-        root.refreshPending = false
-        Qt.callLater(root.refresh)
-      }
-    }
-    // The set-temp bridge verifies the write and returns the full mug state,
-    // so no immediate follow-up poll is needed (a quick second connect can
-    // read a stale cache or fail transiently and revert the UI).
   }
 
   // ---- Polling ----
@@ -250,13 +255,36 @@ BarWidget {
     onTriggered: root.refresh()
   }
 
-  // A stuck BlueZ call can leave the Process wedged; reset it and retry.
+  // A command left unanswered (stuck BlueZ call, dead link) means the bridge
+  // needs a hard restart.
   Timer {
-    id: statusWatchdog
+    id: responseWatchdog
     interval: 20000
     onTriggered: {
-      if (statusProc.running) statusProc.running = false
-      root.refresh()
+      root.commandPending = false
+      root.failStreak++
+      root.lastError = "bridge unresponsive"
+      if (root.failStreak >= 2) root.connected = false
+      if (bridgeProc.running) bridgeProc.running = false
+      if (root.configured) restartTimer.restart()
+    }
+  }
+
+  Timer {
+    id: restartTimer
+    interval: 5000
+    onTriggered: {
+      if (root.configured && !bridgeProc.running) {
+        if (root.pendingCommand === "") root.pendingCommand = "status"
+        root.startBridge()
+      }
+    }
+  }
+
+  Component.onCompleted: {
+    if (root.configured) {
+      root.pendingCommand = "status"
+      root.startBridge()
     }
   }
 

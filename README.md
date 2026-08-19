@@ -1,7 +1,8 @@
 # Ember Mug
 
-> **Disclaimer:** This plugin's code was written entirely by an AI assistant.
-> No human hands have touched it.
+> This plugin's code was written with the help of an AI assistant and has been
+> reviewed; the D-Bus/BlueZ bridge is small and only talks to a device you have
+> paired yourself.
 
 Monitor and control an [Ember smart mug](https://ember.com/) from the Omarchy
 bar: current temperature, battery level, liquid state, and target temperature
@@ -13,14 +14,32 @@ control.
   state are in the tooltip and panel).
 - **Control panel** (click the bar widget) with a target-temperature slider;
   the far-left of the slider is **Off**.
-- Zero new packages — the plugin talks to the mug over BlueZ GATT directly
+- No extra packages — the plugin talks to the mug over BlueZ GATT directly
   through D-Bus using the already-installed `dbus-python`.
+
+## Dependencies
+
+- **Python 3** with the `dbus-python` bindings (installed by default on
+  Omarchy).
+- **BlueZ** (`bluetoothd`) running, with the mug **paired** to your machine
+  (see below).
 
 ## Install
 
 ```sh
 omarchy plugin add https://github.com/Confined-/ember-plugin.git --enable
 ```
+
+## Remove
+
+```sh
+omarchy plugin remove confined-.ember
+```
+
+This removes the plugin and its bar-widget entry. Any `mac`, `unit`, or
+`pollIntervalSec` values you set stay behind in the widget's entry in
+`~/.config/omarchy/shell.json` — delete that entry by hand if you want them
+gone too.
 
 ## Pair the mug
 
@@ -54,6 +73,9 @@ If the mug won't pair or doesn't show up in `scan on`, it may need a reset
 Settings live inline in the widget's entry in `~/.config/omarchy/shell.json`
 (under `bar.layout.*` for the `confined-.ember` entry). Edit the file and the
 widget picks the changes up on the next reload:
+
+Until `mac` is set, the bar widget just shows the mug icon and its tooltip
+says the mug is not configured.
 
 | Setting               | Default | Meaning                                             |
 |-----------------------|---------|-----------------------------------------------------|
@@ -89,8 +111,10 @@ and write the mug's GATT characteristics:
 | Liquid state   | `fc540008-236c-4c94-8fa9-944a3e5353fa` | Read         |
 
 Temperatures are sent as a uint16 little-endian value in hundredths of a
-degree Celsius. The bar widget runs `ember_ble.py status --mac …` on a timer
-and parses the JSON it prints.
+degree Celsius. The widget keeps a single long-lived `ember_ble.py repl --mac …`
+process connected to the mug so the link isn't torn down after every poll
+(Ember firmware is sensitive to that), and feeds it one `status` / `set-temp`
+command per line.
 
 ## Caveats
 

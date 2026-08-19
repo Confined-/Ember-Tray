@@ -18,6 +18,16 @@ Commands:
     ember_ble.py set-temp --mac AA:BB:CC:DD:EE:FF --value 55.5   (0 turns the heater off)
 
 Both print a single JSON line on stdout.
+
+The widget keeps a single long-lived `repl` process connected to the mug so
+BlueZ never sees a fresh connect/disconnect every poll (Ember firmware is
+sensitive to that churn):
+
+    ember_ble.py repl --mac AA:BB:CC:DD:EE:FF
+
+`repl` reads one command per line from stdin (`status`, `set-temp <celsius>`,
+`quit`) and prints one JSON line per response. The one-shot `status`/`set-temp`
+commands are kept for scripting and quick checks.
 """
 
 import argparse
@@ -28,8 +38,6 @@ import sys
 import time
 
 import dbus
-
-SERVICE_UUID = "fc543622236c4c948fa9944a3e5353fa"
 
 CHAR_UUIDS = {
     "current_temp": "fc540002236c4c948fa9944a3e5353fa",
@@ -165,9 +173,9 @@ def connect_device(bus, device_path):
 def connect_with_retry(device, attempts=4, delay=1.0):
     """Connect, retrying transient 'In Progress' errors.
 
-    The widget runs status and set-temp as separate short-lived processes;
-    when one is already connecting, BlueZ rejects the other with
-    org.bluez.Error.InProgress. Retrying lets the loser wait for the winner.
+    BlueZ returns from Connect() while a connection attempt is already being
+    made (by this script or a concurrent one) with
+    org.bluez.Error.InProgress; retrying lets us wait for the winner.
     """
     last_error = None
     for attempt in range(attempts):
@@ -181,6 +189,57 @@ def connect_with_retry(device, attempts=4, delay=1.0):
             if attempt < attempts - 1:
                 time.sleep(delay)
     raise last_error
+
+
+def wait_services_resolved(bus, device_path, timeout=8):
+    """Wait until GATT services are available after a connect.
+
+    BlueZ often returns from Connect() before org.bluez.Device1.ServicesResolved
+    is true, so walking the object tree right away can miss the characteristics
+    and falsely report "mug service not found". Poll the property instead.
+    """
+    obj = bus.get_object("org.bluez", device_path)
+    props = dbus.Interface(obj, "org.freedesktop.DBus.Properties")
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        try:
+            if props.Get("org.bluez.Device1", "ServicesResolved"):
+                return True
+        except Exception:
+            pass
+        time.sleep(0.2)
+    return False
+
+
+def open_mug(bus, device, device_path):
+    """Connect (if needed) and return the resolved characteristics, or None."""
+    connect_with_retry(device)
+    if not wait_services_resolved(bus, device_path):
+        return None
+    chrc = find_characteristics(bus, device_path)
+    if "current_temp" not in chrc or "target_temp" not in chrc:
+        return None
+    return chrc
+
+
+def confirm_write(bus, chrc_path, raw, attempts=6, delay=0.5):
+    """Read back a written value, retrying while the mug applies it.
+
+    The mug writes with write-without-response, which carries no
+    acknowledgment; an immediate read can race the mug still applying the
+    value (and even briefly refuse target reads with an ATT error) and would
+    falsely report failure.
+    """
+    expected = raw / 100.0
+    for _ in range(attempts):
+        time.sleep(delay)
+        try:
+            confirmed = parse_temp(read_char(bus, chrc_path))
+        except Exception:
+            continue
+        if abs(confirmed - expected) <= 0.11:
+            return confirmed
+    return None
 
 
 def read_state(bus, chrc, target_override=None, heater_on_override=None):
@@ -221,19 +280,18 @@ def cmd_status(args):
     device = connect_device(bus, device_path)
     install_watchdog(WATCHDOG_SECONDS)
     try:
-        connect_with_retry(device)
+        chrc = open_mug(bus, device, device_path)
     except Exception as exc:
         clear_watchdog()
         emit({"connected": False, "error": f"connect failed: {error(exc)}"})
         return 0
 
-    try:
-        chrc = find_characteristics(bus, device_path)
-        if "current_temp" not in chrc:
-            clear_watchdog()
-            emit({"connected": False, "error": "mug service not found on device"})
-            return 0
+    if chrc is None:
+        clear_watchdog()
+        emit({"connected": False, "error": "mug service not found on device"})
+        return 0
 
+    try:
         emit(read_state(bus, chrc))
         return 0
     except Exception as exc:
@@ -258,26 +316,25 @@ def cmd_set_temp(args):
     device = connect_device(bus, device_path)
     install_watchdog(WATCHDOG_SECONDS)
     try:
-        connect_with_retry(device)
+        chrc = open_mug(bus, device, device_path)
     except Exception as exc:
         clear_watchdog()
         emit({"ok": False, "error": f"connect failed: {error(exc)}"})
         return 1
 
+    if chrc is None:
+        clear_watchdog()
+        emit({"ok": False, "error": "target temperature characteristic not found"})
+        return 1
+
     try:
-        chrc = find_characteristics(bus, device_path)
-        target = chrc.get("target_temp")
-        if not target:
-            clear_watchdog()
-            emit({"ok": False, "error": "target temperature characteristic not found"})
-            return 1
         raw = max(0, int(round(float(args.value) * 100)))
-        write_char(bus, target, struct.pack("<H", raw))
+        write_char(bus, chrc["target_temp"], struct.pack("<H", raw))
         # Write-without-response carries no acknowledgment, so confirm the mug
         # actually stored the value before reporting success.
-        confirmed = parse_temp(read_char(bus, target))
-        if abs(confirmed - raw / 100.0) > 0.11:
-            emit({"ok": False, "error": f"write not confirmed (mug reports {confirmed:.2f})"})
+        confirmed = confirm_write(bus, chrc["target_temp"], raw)
+        if confirmed is None:
+            emit({"ok": False, "error": "write not confirmed (mug unresponsive)"})
             return 1
         emit({"ok": True, **read_state(bus, chrc, target_override=confirmed, heater_on_override=raw > 0)})
         return 0
@@ -293,6 +350,74 @@ def cmd_set_temp(args):
             pass
 
 
+def cmd_repl(args):
+    """Persistent bridge: stays connected and serves one command per stdin line.
+
+    Keeps a single GATT connection across polls so BlueZ doesn't tear the link
+    down after every status read. A failed command drops the connection (chrc
+    is reset) and reconnects before the next command.
+    """
+    bus = dbus.SystemBus()
+    device_path = find_device(bus, args.mac)
+    if not device_path:
+        emit({"connected": False, "error": "mug not found (pair it first)"})
+        return 1
+
+    device = connect_device(bus, device_path)
+    try:
+        chrc = open_mug(bus, device, device_path)
+    except Exception as exc:
+        emit({"connected": False, "error": f"connect failed: {error(exc)}"})
+        return 1
+
+    if chrc is None:
+        emit({"connected": False, "error": "mug service not found on device"})
+        return 1
+
+    try:
+        for line in sys.stdin:
+            command = line.strip()
+            if not command:
+                continue
+            if command in ("quit", "exit"):
+                break
+            try:
+                if chrc is None:
+                    chrc = open_mug(bus, device, device_path)
+                    if chrc is None:
+                        emit({"connected": False, "error": "mug not reachable"})
+                        continue
+                if command == "status":
+                    emit(read_state(bus, chrc))
+                elif command.startswith("set-temp "):
+                    value = command[len("set-temp "):].strip()
+                    try:
+                        raw = max(0, int(round(float(value) * 100)))
+                    except ValueError:
+                        emit({"ok": False, "error": "invalid temperature"})
+                        continue
+                    write_char(bus, chrc["target_temp"], struct.pack("<H", raw))
+                    confirmed = confirm_write(bus, chrc["target_temp"], raw)
+                    if confirmed is None:
+                        emit({"ok": False, "error": "write not confirmed (mug unresponsive)"})
+                    else:
+                        emit({"ok": True, **read_state(bus, chrc, target_override=confirmed, heater_on_override=raw > 0)})
+                else:
+                    emit({"ok": False, "error": "unknown command"})
+            except Exception as exc:
+                chrc = None
+                if command == "status":
+                    emit({"connected": False, "error": error(exc)})
+                else:
+                    emit({"ok": False, "error": error(exc)})
+    finally:
+        try:
+            device.Disconnect()
+        except Exception:
+            pass
+    return 0
+
+
 def main():
     parser = argparse.ArgumentParser(prog="ember_ble")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -304,10 +429,15 @@ def main():
     set_temp.add_argument("--mac", required=True, help="mug MAC address (AA:BB:CC:DD:EE:FF)")
     set_temp.add_argument("--value", required=True, help="target temperature in Celsius; 0 turns the heater off")
 
+    repl = sub.add_parser("repl")
+    repl.add_argument("--mac", required=True, help="mug MAC address (AA:BB:CC:DD:EE:FF)")
+
     args = parser.parse_args()
 
     if args.command == "status":
         return cmd_status(args)
+    if args.command == "repl":
+        return cmd_repl(args)
     return cmd_set_temp(args)
 
 
