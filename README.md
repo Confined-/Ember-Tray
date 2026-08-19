@@ -57,7 +57,7 @@ widget picks the changes up on the next reload:
 - Drag the slider (the target label previews the temperature live while you
   drag, and the mug is updated on release). The slider's far-left segment is
   **Off** (writes a target of `0` and turns the heater off); the rest of the
-  track sets the temperature from 120–145 °F (50–62.5 °C).
+  track sets the temperature from 120–145 °F (48.9–62.8 °C).
 - The **°F / °C** next to the displayed temperature toggles the display unit:
   click the unit letter to switch between Fahrenheit and Celsius. The choice
   applies instantly and persists to the `unit` setting in shell.json.

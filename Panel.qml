@@ -24,12 +24,17 @@ Panel {
   readonly property string lastError: mug ? mug.lastError : ""
 
   // Control range: the slider's far-left segment is "off"; the rest of the
-  // track maps the usable temperature band (120–145 °F / 50–62.5 °C).
-  readonly property real minTemp: useFahrenheit ? 120 : 50
-  readonly property real maxTemp: useFahrenheit ? 145 : 62.5
+  // track maps the usable temperature band (120–145 °F / 48.9–62.8 °C). The
+  // raw track scale is fixed in Fahrenheit degrees so switching the display
+  // unit never rescales the slider; the Celsius band is the exact Fahrenheit
+  // equivalent, so a given temperature sits at the same knob position in both.
+  readonly property real fMinTemp: 120
+  readonly property real fMaxTemp: 145
+  readonly property real minTemp: useFahrenheit ? root.fMinTemp : (root.fMinTemp - 32) * 5 / 9
+  readonly property real maxTemp: useFahrenheit ? root.fMaxTemp : (root.fMaxTemp - 32) * 5 / 9
   readonly property real tempStep: useFahrenheit ? 1 : 0.5
   readonly property real offZone: 0.15
-  readonly property real sliderMax: root.maxTemp
+  readonly property real sliderMax: root.fMaxTemp
   readonly property real offValue: root.sliderMax * root.offZone
 
   // Convert between raw slider position (0..sliderMax) and the temperature it
