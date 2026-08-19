@@ -1,5 +1,8 @@
 # Ember Mug
 
+> **Disclaimer:** This plugin's code was written entirely by an AI assistant.
+> No human hands have touched it.
+
 Monitor and control an [Ember smart mug](https://ember.com/) from the Omarchy
 bar: current temperature, battery level, liquid state, and target temperature
 control.
