@@ -40,7 +40,8 @@ so the computer can connect.
 
 If the mug won't pair or doesn't show up in `scan on`, it may need a reset:
 
-1. Place the mug on its charging coaster (reset only works while charging).
+1. Pick the mug up (the button is on the bottom, unreachable while it sits on
+   the coaster).
 2. Press and hold the button on the bottom of the mug for **about 10 seconds**
    (5 seconds = soft reset, 15 seconds = factory reset) until the LED flashes.
 3. Release the button; the LED blink means the mug has reset.
