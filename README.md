@@ -38,18 +38,17 @@ If the mug is currently connected to the Ember phone app, the two will fight
 over the connection — disconnect it from the app (or turn off Bluetooth there)
 so the computer can connect.
 
-If the mug won't pair or doesn't show up in `scan on`, it may need a reset:
+If the mug won't pair or doesn't show up in `scan on`, it may need a reset
+([official instructions](https://support.ember.com/en-US/ember-mug-how-to-reset-1757480)):
 
-1. Pick the mug up (the button is on the bottom, unreachable while it sits on
-   the coaster).
-2. Press and hold the button on the bottom of the mug for **about 10 seconds**
-   (5 seconds = soft reset, 15 seconds = factory reset) until the LED flashes.
-3. Release the button; the LED blink means the mug has reset.
-4. Pair again as above.
-
-A reset clears the mug's remembered devices, so it must be paired again
-afterward. It can also be needed after a device was removed from the official
-Ember app.
+1. Pick the mug up (the power button is on the bottom, unreachable while it
+   sits on the coaster).
+2. Press and hold the power button for **about 15 seconds**.
+3. The LED will blink **blue, then yellow, then red** — let go once you see
+   these colors.
+4. Wait for the LED to pulse back to **white**, which confirms the reset.
+5. If the mug was paired before, "forget" the *Ember Ceramic Mug* in your
+   device's Bluetooth settings, then pair again as above.
 
 ## Configure
 
