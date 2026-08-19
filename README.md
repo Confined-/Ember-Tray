@@ -16,7 +16,7 @@ control.
 ## Install
 
 ```sh
-omarchy plugin add https://github.com/<you>/ember-plugin.git --enable
+omarchy plugin add https://github.com/Confined-/ember-plugin.git --enable
 omarchy bar move brittle.ember --section right
 ```
 
