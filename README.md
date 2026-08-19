@@ -41,8 +41,7 @@ so the computer can connect.
 If the mug won't pair or doesn't show up in `scan on`, it may need a reset
 ([official instructions](https://support.ember.com/en-US/ember-mug-how-to-reset-1757480)):
 
-1. Pick the mug up (the power button is on the bottom, unreachable while it
-   sits on the coaster).
+1. Pick the mug up.
 2. Press and hold the power button for **about 15 seconds**.
 3. The LED will blink **blue, then yellow, then red** — let go once you see
    these colors.
