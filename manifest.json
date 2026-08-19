@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "id": "brittle.ember",
+  "name": "Ember Mug",
+  "version": "1.0.0",
+  "author": "Confined",
+  "license": "MIT",
+  "description": "Monitor and control an Ember smart mug: current temperature, battery level, and target temperature.",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Ember Mug",
+    "description": "Current temperature, battery level, and target temperature control for an Ember smart mug.",
+    "category": "Utilities",
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {
+      "mac": "",
+      "pollIntervalSec": 30,
+      "unit": "",
+      "refreshOnOpen": true
+    },
+    "schema": [
+      {
+        "key": "mac",
+        "type": "string",
+        "label": "Mug MAC address (AA:BB:CC:DD:EE:FF)",
+        "defaultValue": ""
+      },
+      {
+        "key": "pollIntervalSec",
+        "type": "integer",
+        "label": "Poll interval (seconds)",
+        "min": 10,
+        "max": 3600,
+        "step": 5,
+        "defaultValue": 30
+      },
+      {
+        "key": "unit",
+        "type": "string",
+        "label": "Display unit (C or F; empty uses the mug's own setting)",
+        "defaultValue": ""
+      },
+      {
+        "key": "refreshOnOpen",
+        "type": "boolean",
+        "label": "Refresh when the panel opens",
+        "defaultValue": true
+      }
+    ]
+  }
+}
