@@ -17,12 +17,7 @@ control.
 
 ```sh
 omarchy plugin add https://github.com/Confined-/ember-plugin.git --enable
-omarchy bar move confined-.ember --section right
 ```
-
-Or install by hand: copy this folder to
-`~/.config/omarchy/plugins/confined-.ember/`, then run
-`omarchy-shell shell rescanPlugins` and enable the widget.
 
 ## Pair the mug
 
