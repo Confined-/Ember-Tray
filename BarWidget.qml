@@ -4,7 +4,7 @@ import qs.Ui
 
 BarWidget {
   id: root
-  moduleName: "brittle.ember"
+  moduleName: "confined-.ember"
 
   // ---- Configuration (shell.json entry settings) ----
   readonly property string mugMac: String(setting("mac", "") || "").trim().toUpperCase()

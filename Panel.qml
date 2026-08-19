@@ -4,7 +4,7 @@ import qs.Ui
 
 Panel {
   id: root
-  moduleName: "brittle.ember"
+  moduleName: "confined-.ember"
   manageIpc: false
 
   property var anchorItem: null

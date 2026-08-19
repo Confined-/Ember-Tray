@@ -17,11 +17,11 @@ control.
 
 ```sh
 omarchy plugin add https://github.com/Confined-/ember-plugin.git --enable
-omarchy bar move brittle.ember --section right
+omarchy bar move confined-.ember --section right
 ```
 
 Or install by hand: copy this folder to
-`~/.config/omarchy/plugins/brittle.ember/`, then run
+`~/.config/omarchy/plugins/confined-.ember/`, then run
 `omarchy-shell shell rescanPlugins` and enable the widget.
 
 ## Pair the mug
@@ -43,7 +43,7 @@ so the computer can connect.
 ## Configure
 
 Settings live inline in the widget's entry in `~/.config/omarchy/shell.json`
-(under `bar.layout.*` for the `brittle.ember` entry). Edit the file and the
+(under `bar.layout.*` for the `confined-.ember` entry). Edit the file and the
 widget picks the changes up on the next reload:
 
 | Setting               | Default | Meaning                                             |
