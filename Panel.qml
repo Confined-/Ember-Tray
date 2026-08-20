@@ -33,7 +33,7 @@ Panel {
   readonly property real minTemp: useFahrenheit ? root.fMinTemp : (root.fMinTemp - 32) * 5 / 9
   readonly property real maxTemp: useFahrenheit ? root.fMaxTemp : (root.fMaxTemp - 32) * 5 / 9
   readonly property real tempStep: useFahrenheit ? 1 : 0.5
-  readonly property real offZone: 0.06
+  readonly property real offZone: 0.10
   readonly property real sliderMax: root.fMaxTemp
   readonly property real offValue: root.sliderMax * root.offZone
 
