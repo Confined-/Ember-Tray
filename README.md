@@ -21,6 +21,16 @@ Open the tray panel after pairing:
 
 If the phone app is connected, disconnect it first.
 
+**Pairing via the panel:**
+
+1. With no mug configured, open the panel — tap **Scan nearby** if nothing appears.
+
+   ![Discover](pairing-discover.png)
+
+2. Tap **Pair** (or **Use** if already paired) on the found mug — it connects and shows the temperature.
+
+   ![Connected](pairing-connected.png)
+
 **Reset** if the mug won’t appear: pick it up, hold the bottom button ~15 s until it blinks blue → yellow → red, let go, wait for white pulse, then forget *Ember Ceramic Mug* in Bluetooth settings and pair again — [official instructions](https://support.ember.com/en-US/ember-mug-how-to-reset-1757480).
 
 ## Use
