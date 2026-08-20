@@ -1,5 +1,7 @@
 # Ember-Tray
 
+![Ember-Tray preview](preview.png)
+
 Control your Ember smart mug from the Omarchy tray — see temperature and battery, set the target.
 
 ## Install
@@ -27,7 +29,13 @@ If the phone app is connected, disconnect it first.
 - Tap the large temperature to switch °F/°C.
 - Drag the slider to set the target — far left is **Off**.
 
-No config files to edit. A fresh mug is kept off until you pick a temperature (it would otherwise default to ~135 °F).
+No config files to edit. To free the radio for the phone app, tap **Pause** in the panel (or disable the widget) — the GATT link is held while the widget is enabled.
+
+## Configure
+
+No settings UI is provided — this is intentional. The widget is configured either automatically (open the panel → **Use**/**Pair**) or by editing `~/.config/omarchy/shell.json` (`bar.layout.*` → `confined-.ember` → `mac`/`unit`/`pollIntervalSec`). The `barWidget.defaults`/`schema` in `manifest.json` documents the keys but is not validated by the current Omarchy shell.
+
+Requires **Omarchy 4 (Quattro) shell**, **BlueZ**, and **python-dbus** (`dbus-python`). Tested on Ember Mug 2 with firmware 2.x — other models may vary (protocol by [orlopau/ember-mug](https://github.com/orlopau/ember-mug)).
 
 ## Remove
 

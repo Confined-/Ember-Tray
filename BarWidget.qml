@@ -29,18 +29,22 @@ BarWidget {
   property int failStreak: 0
   property var pendingSetTemp: ""
   readonly property bool settingTarget: root.commandPending || root.pendingSetTemp !== ""
-  // ---- Discovery (auto-pick paired mug, picker + scan fallback) ----
+  // ---- Discovery (picker + scan fallback; no auto-off) ----
   property var discoveredDevices: []
   property bool discovering: false
   property string discoverError: ""
   property bool hasTriedScan: false
-  property bool pendingFirstRunOff: false
   property bool pairing: false
   property string pairingMac: ""
   property string pairingError: ""
+  property bool paused: false
 
   readonly property bool configured: mugMac !== ""
-  property string unitPreference: String(setting("unit", "") || "").toUpperCase()
+  function normalizeUnit(v) {
+    v = String(v || "").trim().toUpperCase()
+    return (v === "C" || v === "F") ? v : ""
+  }
+  property string unitPreference: normalizeUnit(setting("unit", ""))
   readonly property string displayUnit: unitPreference !== "" ? unitPreference : mugUnit
   readonly property bool useFahrenheit: displayUnit === "F"
 
@@ -126,10 +130,35 @@ BarWidget {
       })
     }
     root.discoverError = ""
-    // Freshly configured mugs come up at the firmware default (~135°F) with
-    // the heater on; keep them off until the user explicitly picks a target.
-    root.pendingFirstRunOff = true
   }
+
+  function setPaused(v) {
+    v = !!v
+    if (v === root.paused) return
+    root.paused = v
+    if (v) {
+      if (bridgeProc.running) bridgeProc.running = false
+      root.bridgeReady = false
+      root.commandPending = false
+      root.pendingCommand = ""
+      restartTimer.stop()
+      responseWatchdog.stop()
+      pollTimer.stop()
+      root.connected = false
+      root.lastError = "paused — tap Resume to reconnect"
+    } else {
+      root.lastError = ""
+      root.failStreak = 0
+      restartTimer.stop()
+      responseWatchdog.stop()
+      pollTimer.start()
+      if (root.configured) {
+        root.pendingCommand = "status"
+        root.startBridge()
+      }
+    }
+  }
+  function togglePaused() { root.setPaused(!root.paused) }
 
   function runDiscover(useScan) {
     if (root.discovering) return
@@ -166,10 +195,6 @@ BarWidget {
         root.runDiscover(true)
       }
       return
-    }
-    if (data.length === 1 && data[0].paired) {
-      // Single paired mug — auto-pick so a fresh install just works after pairing.
-      root.setDiscoveredMac(data[0].mac)
     }
   }
 
@@ -233,6 +258,7 @@ BarWidget {
   }
 
   function startBridge() {
+    if (root.paused) return
     if (bridgeProc.running || !root.configured) return
     bridgeProc.command = ["python3", root.scriptPath(), "repl", "--mac", root.mugMac]
     bridgeProc.running = true
@@ -307,29 +333,10 @@ BarWidget {
     root.commandPending = false
     responseWatchdog.stop()
     if (data.ok !== undefined) {
-      if (data.ok === true) {
-        root.applyState(data)
-        if (root.pendingFirstRunOff) {
-          root.pendingFirstRunOff = false
-          if (data.heaterOn === true || (typeof data.targetTemp === "number" && data.targetTemp > 0)) {
-            // Fresh mug came up with heater on at firmware default (~135°F);
-            // keep it off until the user explicitly picks a temperature.
-            root.deferNext()
-            root.request("set-temp 0")
-            return
-          }
-        }
-      } else root.lastError = String(data.error || "set failed")
+      if (data.ok === true) root.applyState(data)
+      else root.lastError = String(data.error || "set failed")
     } else if (data.connected === true) {
       root.applyState(data)
-      if (root.pendingFirstRunOff) {
-        root.pendingFirstRunOff = false
-        if (data.heaterOn === true || (typeof data.targetTemp === "number" && data.targetTemp > 0)) {
-          root.deferNext()
-          root.request("set-temp 0")
-          return
-        }
-      }
     } else {
       // A single transient miss shouldn't flash the mug offline; only flip
       // state on consecutive failures.
@@ -355,6 +362,9 @@ BarWidget {
 
   function setTargetTemp(displayValue) {
     if (!root.configured) return
+    displayValue = Number(displayValue)
+    if (!isFinite(displayValue)) return
+    if (displayValue !== 0 && (displayValue < root.minTemp - 0.01 || displayValue > root.maxTemp + 0.01)) return
     if (root.commandPending) {
       root.pendingSetTemp = displayValue
       return
@@ -420,7 +430,7 @@ BarWidget {
       root.commandPending = false
       root.pendingCommand = ""
       if (exitCode !== 0 && root.lastError === "") root.lastError = "bridge exited " + exitCode
-      if (root.configured) restartTimer.restart()
+      if (root.configured && !root.paused) restartTimer.restart()
     }
   }
 
@@ -428,7 +438,7 @@ BarWidget {
   Timer {
     id: pollTimer
     interval: root.pollIntervalSec * 1000
-    running: true
+    running: !root.paused
     repeat: true
     triggeredOnStart: true
     onTriggered: root.refresh()
@@ -445,7 +455,7 @@ BarWidget {
       root.lastError = "bridge unresponsive"
       if (root.failStreak >= 2) root.connected = false
       if (bridgeProc.running) bridgeProc.running = false
-      if (root.configured) restartTimer.restart()
+      if (root.configured && !root.paused) restartTimer.restart()
     }
   }
 
@@ -453,6 +463,7 @@ BarWidget {
     id: restartTimer
     interval: 5000
     onTriggered: {
+      if (root.paused) return
       if (root.configured && !bridgeProc.running) {
         if (root.pendingCommand === "") root.pendingCommand = "status"
         root.startBridge()
@@ -466,14 +477,41 @@ BarWidget {
     id: bluetoothRetryTimer
     interval: 2000
     repeat: true
-    running: (String(root.lastError || "").indexOf("Bluetooth is off") !== -1) || (String(root.discoverError || "").indexOf("Bluetooth is off") !== -1)
+    running: !root.paused && ((String(root.lastError || "").indexOf("Bluetooth is off") !== -1) || (String(root.discoverError || "").indexOf("Bluetooth is off") !== -1))
     onTriggered: {
+      if (root.paused) return
       if (root.configured) {
         if (!root.connected) root.refresh()
       } else {
         if (!root.discovering) root.runDiscover(false)
       }
     }
+  }
+
+  // Pairing can block on BlueZ authorization (no agent, user prompt, etc.).
+  // Don't leave the UI stuck in "Pairing…" forever.
+  Timer {
+    id: pairingWatchdog
+    interval: 30000
+    repeat: false
+    running: root.pairing
+    onTriggered: {
+      if (!root.pairing) return
+      if (pairProc.running) pairProc.running = false
+      // Best-effort cancel the BlueZ pairing session
+      if (root.pairingMac) {
+        cancelPairProc.command = ["python3", root.scriptPath(), "cancel-pair", "--mac", root.pairingMac]
+        cancelPairProc.running = true
+      }
+      root.pairing = false
+      root.pairingMac = ""
+      root.pairingError = "pairing timed out — try again"
+      root.discoverError = root.pairingError
+    }
+  }
+  Process {
+    id: cancelPairProc
+    stdout: StdioCollector { waitForEnd: true }
   }
 
   Component.onCompleted: {
@@ -493,7 +531,7 @@ BarWidget {
 
   onBarChanged: injectPanel()
   onSettingsChanged: {
-    root.unitPreference = String(root.setting("unit", "") || "").toUpperCase()
+    root.unitPreference = root.normalizeUnit(root.setting("unit", ""))
     injectPanel()
   }
 

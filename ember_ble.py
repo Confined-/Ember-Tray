@@ -32,6 +32,7 @@ commands are kept for scripting and quick checks.
 
 import argparse
 import json
+import math
 import signal
 import struct
 import sys
@@ -100,6 +101,32 @@ def parse_battery(data):
     percent = raw[0] if len(raw) >= 1 else 0
     charging = len(raw) >= 2 and raw[1] == 1
     return percent, charging
+
+
+def parse_target_value(value_str):
+    """Parse a set-temp value (Celsius, 0 for off) and return raw uint16.
+
+    Only 0 (heater off) or the mug's supported band (~48.9–62.8°C / 120–145°F)
+    is accepted; other values would either overflow the GATT <H or be outside
+    what the firmware will actually heat to.
+    """
+    try:
+        v = float(value_str)
+    except ValueError:
+        raise ValueError("invalid temperature: not a number") from None
+    if not math.isfinite(v):
+        raise ValueError("invalid temperature: not finite")
+    if v == 0:
+        return 0
+    # Allow a tiny epsilon outside the exact 48.888-62.777 band
+    if not (48.0 <= v <= 63.0):
+        if 120 <= v <= 145:
+            raise ValueError("temperature looks like Fahrenheit; this command takes Celsius (0 for off, ~49-63 for the mug)")
+        raise ValueError("temperature out of supported range (0 for off, or ~49-63°C / 120-145°F)")
+    raw = int(round(v * 100))
+    if not (0 <= raw <= 65535):
+        raise ValueError("temperature out of range for GATT characteristic")
+    return raw
 
 
 def find_device(bus, mac):
@@ -353,20 +380,24 @@ def cmd_discover(args):
     if args.scan:
         adapter_path = find_adapter(bus)
         adapter = dbus.Interface(bus.get_object("org.bluez", adapter_path), "org.bluez.Adapter1")
+        started_by_us = False
         try:
             adapter.StartDiscovery()
+            started_by_us = True
         except Exception as exc:
             msg = str(exc)
-            if "InProgress" not in msg and "Already" not in msg and "Failed" not in msg:
+            if "InProgress" not in msg and "Already" not in msg:
                 print(json.dumps({"error": friendly_error(exc, bus)}))
                 sys.stdout.flush()
                 return 1
-            # Already discovering is fine — just collect what we have.
+            # Another app is already discovering — just collect what we have
+            # and don't stop their scan.
         time.sleep(args.timeout)
-        try:
-            adapter.StopDiscovery()
-        except Exception:
-            pass
+        if started_by_us:
+            try:
+                adapter.StopDiscovery()
+            except Exception:
+                pass
     try:
         candidates = collect_ember_candidates(bus)
     except Exception as exc:
@@ -414,6 +445,22 @@ def cmd_pair(args):
         sys.stdout.flush()
         return 1
     print(json.dumps({"ok": True, "mac": str(args.mac).upper()}))
+    sys.stdout.flush()
+    return 0
+
+
+def cmd_cancel_pair(args):
+    bus = dbus.SystemBus()
+    # Try to cancel any ongoing pairing for this device
+    device_path = find_device(bus, args.mac)
+    if device_path:
+        try:
+            obj = bus.get_object("org.bluez", device_path)
+            dev_iface = dbus.Interface(obj, "org.bluez.Device1")
+            dev_iface.CancelPairing()
+        except Exception:
+            pass
+    print(json.dumps({"ok": True}))
     sys.stdout.flush()
     return 0
 
@@ -512,7 +559,11 @@ def cmd_set_temp(args):
         return 1
 
     try:
-        raw = max(0, int(round(float(args.value) * 100)))
+        try:
+            raw = parse_target_value(args.value)
+        except ValueError as exc:
+            emit({"ok": False, "error": str(exc)})
+            return 1
         write_char(bus, chrc["target_temp"], struct.pack("<H", raw))
         # Write-without-response carries no acknowledgment, so confirm the mug
         # actually stored the value before reporting success.
@@ -584,9 +635,9 @@ def cmd_repl(args):
                 elif command.startswith("set-temp "):
                     value = command[len("set-temp "):].strip()
                     try:
-                        raw = max(0, int(round(float(value) * 100)))
-                    except ValueError:
-                        emit({"ok": False, "error": "invalid temperature"})
+                        raw = parse_target_value(value)
+                    except ValueError as exc:
+                        emit({"ok": False, "error": str(exc)})
                         continue
                     write_char(bus, chrc["target_temp"], struct.pack("<H", raw))
                     confirmed = confirm_write(bus, chrc["target_temp"], raw)
@@ -631,12 +682,17 @@ def main():
     pair = sub.add_parser("pair")
     pair.add_argument("--mac", required=True, help="mug MAC address (AA:BB:CC:DD:EE:FF)")
 
+    cancel_pair = sub.add_parser("cancel-pair")
+    cancel_pair.add_argument("--mac", required=True, help="mug MAC address (AA:BB:CC:DD:EE:FF)")
+
     args = parser.parse_args()
 
     if args.command == "status":
         return cmd_status(args)
     if args.command == "repl":
         return cmd_repl(args)
+    if args.command == "cancel-pair":
+        return cmd_cancel_pair(args)
     if args.command == "discover":
         return cmd_discover(args)
     if args.command == "pair":
