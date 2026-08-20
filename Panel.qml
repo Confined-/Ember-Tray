@@ -316,7 +316,7 @@ Panel {
           Text {
             visible: root.mug && !root.mug.discovering && root.mug.discoverError === "" && root.mug.discoveredDevices.length === 0
             width: parent.width
-            text: "No Ember mugs found. Tap Scan nearby to discover it — then tap Pair, or pair via the Bluetooth tray icon."
+            text: "No Ember mugs found. Tap Scan nearby to discover it — then tap Pair."
             color: Qt.darker(root.bar.foreground, 1.4)
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.bodySmall
