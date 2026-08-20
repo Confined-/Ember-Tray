@@ -10,18 +10,12 @@ omarchy plugin add https://github.com/Confined-/Ember-Tray.git --enable
 
 ## Pair
 
-```sh
-bluetoothctl
-scan on
-pair AA:BB:CC:DD:EE:FF
-trust AA:BB:CC:DD:EE:FF
-```
+Pair via the Bluetooth tray icon, or via this panel: tap **Scan nearby** to discover the mug, then tap **Use** — it pairs automatically.
 
 Open the tray panel after pairing:
 
 - One paired mug → connects automatically.
 - Several mugs → tap **Use** on the one you want.
-- Mug not yet paired → tap **Scan nearby** in the panel, then `pair`/`trust` above.
 
 If the phone app is connected, disconnect it first.
 

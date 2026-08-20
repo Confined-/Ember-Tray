@@ -336,6 +336,46 @@ def cmd_discover(args):
     return 0
 
 
+def cmd_pair(args):
+    bus = dbus.SystemBus()
+    device_path = find_device(bus, args.mac)
+    if not device_path:
+        print(json.dumps({"ok": False, "error": "mug not found (is it nearby and advertising?)"}))
+        sys.stdout.flush()
+        return 1
+    obj = bus.get_object("org.bluez", device_path)
+    dev_iface = dbus.Interface(obj, "org.bluez.Device1")
+    # Pair if not already paired
+    try:
+        # Check current paired state first to avoid unnecessary Pair call
+        props = dbus.Interface(obj, "org.freedesktop.DBus.Properties")
+        paired = props.Get("org.bluez.Device1", "Paired")
+        if not paired:
+            dev_iface.Pair()
+    except dbus.exceptions.DBusException as exc:
+        msg = str(exc)
+        # AlreadyExists / Already Paired can be treated as success
+        if "AlreadyExists" not in msg and "Already paired" not in msg and "Paired" not in msg:
+            print(json.dumps({"ok": False, "error": f"pair failed: {error(exc)}"}))
+            sys.stdout.flush()
+            return 1
+    except Exception as exc:
+        print(json.dumps({"ok": False, "error": f"pair failed: {error(exc)}"}))
+        sys.stdout.flush()
+        return 1
+    # Trust so it auto-connects next time
+    try:
+        props = dbus.Interface(obj, "org.freedesktop.DBus.Properties")
+        props.Set("org.bluez.Device1", "Trusted", dbus.Boolean(True))
+    except Exception as exc:
+        print(json.dumps({"ok": False, "error": f"trust failed: {error(exc)}"}))
+        sys.stdout.flush()
+        return 1
+    print(json.dumps({"ok": True, "mac": str(args.mac).upper()}))
+    sys.stdout.flush()
+    return 0
+
+
 def read_state(bus, chrc, target_override=None, heater_on_override=None):
     current = parse_temp(read_char(bus, chrc["current_temp"]))
     target = (
@@ -530,6 +570,9 @@ def main():
     discover.add_argument("--scan", action="store_true", help="actively scan for nearby unpaired mugs")
     discover.add_argument("--timeout", type=int, default=6, help="scan duration in seconds (with --scan)")
 
+    pair = sub.add_parser("pair")
+    pair.add_argument("--mac", required=True, help="mug MAC address (AA:BB:CC:DD:EE:FF)")
+
     args = parser.parse_args()
 
     if args.command == "status":
@@ -538,6 +581,8 @@ def main():
         return cmd_repl(args)
     if args.command == "discover":
         return cmd_discover(args)
+    if args.command == "pair":
+        return cmd_pair(args)
     return cmd_set_temp(args)
 
 

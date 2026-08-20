@@ -316,7 +316,7 @@ Panel {
           Text {
             visible: root.mug && !root.mug.discovering && root.mug.discoverError === "" && root.mug.discoveredDevices.length === 0
             width: parent.width
-            text: "No Ember mugs found. Pair the mug in Bluetooth settings first, then hit Scan — or set the MAC manually in shell.json."
+            text: "No Ember mugs found. Tap Scan nearby to discover it — then tap Pair, or pair via the Bluetooth tray icon."
             color: Qt.darker(root.bar.foreground, 1.4)
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.bodySmall
@@ -385,9 +385,10 @@ Panel {
                     height: 28
                     radius: 6
                     color: Color.accent
+                    opacity: root.mug && root.mug.pairing && root.mug.pairingMac === modelData.mac ? 0.6 : 1.0
                     Text {
                       anchors.centerIn: parent
-                      text: "Use"
+                      text: root.mug && root.mug.pairing && root.mug.pairingMac === modelData.mac ? "…" : (modelData.paired ? "Use" : "Pair")
                       color: "white"
                       font.family: root.bar.fontFamily
                       font.pixelSize: Style.font.bodySmall
@@ -395,8 +396,13 @@ Panel {
                     }
                     MouseArea {
                       anchors.fill: parent
+                      enabled: !(root.mug && root.mug.pairing)
                       cursorShape: Qt.PointingHandCursor
-                      onClicked: if (root.mug && root.mug.setDiscoveredMac) root.mug.setDiscoveredMac(modelData.mac)
+                      onClicked: {
+                        if (!root.mug) return
+                        if (root.mug.useDiscoveredDevice) root.mug.useDiscoveredDevice(modelData.mac, modelData.paired)
+                        else if (root.mug.setDiscoveredMac) root.mug.setDiscoveredMac(modelData.mac)
+                      }
                     }
                   }
                 }

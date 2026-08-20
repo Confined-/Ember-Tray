@@ -35,6 +35,9 @@ BarWidget {
   property string discoverError: ""
   property bool hasTriedScan: false
   property bool pendingFirstRunOff: false
+  property bool pairing: false
+  property string pairingMac: ""
+  property string pairingError: ""
 
   readonly property bool configured: mugMac !== ""
   property string unitPreference: String(setting("unit", "") || "").toUpperCase()
@@ -162,6 +165,44 @@ BarWidget {
     if (data.length === 1 && data[0].paired) {
       // Single paired mug — auto-pick so a fresh install just works after pairing.
       root.setDiscoveredMac(data[0].mac)
+    }
+  }
+
+  function useDiscoveredDevice(mac, paired) {
+    mac = String(mac || "").trim().toUpperCase()
+    if (!mac) return
+    if (paired) {
+      root.setDiscoveredMac(mac)
+      return
+    }
+    if (root.pairing) return
+    root.pairing = true
+    root.pairingMac = mac
+    root.pairingError = ""
+    root.discoverError = ""
+    pairProc.command = ["python3", root.scriptPath(), "pair", "--mac", mac]
+    pairProc.running = true
+  }
+
+  function onPairFinished(text) {
+    var raw = String(text || "").trim()
+    root.pairing = false
+    var mac = root.pairingMac
+    root.pairingMac = ""
+    if (!raw) {
+      root.pairingError = "no response from pair"
+      root.discoverError = root.pairingError
+      return
+    }
+    var data
+    try { data = JSON.parse(raw) } catch (e) { root.pairingError = "bad response from pair"; root.discoverError = root.pairingError; return }
+    if (data && data.ok === true) {
+      root.pairingError = ""
+      root.setDiscoveredMac(data.mac || mac)
+    } else {
+      var err = data && data.error ? String(data.error) : "pair failed"
+      root.pairingError = err
+      root.discoverError = err
     }
   }
 
@@ -329,6 +370,22 @@ BarWidget {
         // Keep whatever onStreamFinished parsed; only note a hard failure.
         if (root.discoveredDevices.length === 0 && root.discoverError === "") root.discoverError = "discover exited " + exitCode
         root.discovering = false
+      }
+    }
+  }
+
+  // ---- Pairing process (one-shot) ----
+  Process {
+    id: pairProc
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.onPairFinished(text)
+    }
+    onExited: function(exitCode) {
+      if (exitCode !== 0 && root.pairing) {
+        if (root.pairingError === "" && root.discoverError === "") root.discoverError = "pair exited " + exitCode
+        root.pairing = false
+        root.pairingMac = ""
       }
     }
   }
