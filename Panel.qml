@@ -150,6 +150,13 @@ Panel {
               font.family: root.bar.fontFamily
               font.pixelSize: Style.font.displayLarge
               font.bold: true
+
+              MouseArea {
+                anchors.fill: parent
+                enabled: root.connected
+                cursorShape: Qt.PointingHandCursor
+                onClicked: root.mug.setUnitPref(root.useFahrenheit ? "C" : "F")
+              }
             }
             Text {
               text: root.connected ? "°" + root.displayUnit : ""
@@ -158,13 +165,6 @@ Panel {
               font.pixelSize: Style.font.display
               anchors.top: tempBig.top
               anchors.topMargin: Style.space(8)
-
-              MouseArea {
-                anchors.fill: parent
-                enabled: root.connected
-                cursorShape: Qt.PointingHandCursor
-                onClicked: root.mug.setUnitPref(root.useFahrenheit ? "C" : "F")
-              }
             }
           }
 

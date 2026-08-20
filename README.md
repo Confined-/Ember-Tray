@@ -91,9 +91,9 @@ says the mug is not configured.
   drag, and the mug is updated on release). The slider's far-left segment is
   **Off** (writes a target of `0` and turns the heater off); the rest of the
   track sets the temperature from 120–145 °F (48.9–62.8 °C).
-- The **°F / °C** next to the displayed temperature toggles the display unit:
-  click the unit letter to switch between Fahrenheit and Celsius. The choice
-  applies instantly and persists to the `unit` setting in shell.json.
+- Click the displayed temperature to toggle the display unit between
+  Fahrenheit and Celsius. The choice applies instantly and persists to the
+  `unit` setting in shell.json.
 - The widget re-reads the mug every `pollIntervalSec`, when the panel opens,
   and on middle-click of the bar icon.
 
