@@ -29,7 +29,7 @@ If the phone app is connected, disconnect it first.
 - Tap the large temperature to switch °F/°C.
 - Drag the slider to set the target — far left is **Off**.
 
-No config files to edit. To free the radio for the phone app, tap **Pause** in the panel (or disable the widget) — the GATT link is held while the widget is enabled.
+No config files to edit.
 
 ## Configure
 

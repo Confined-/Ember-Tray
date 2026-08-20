@@ -37,7 +37,6 @@ BarWidget {
   property bool pairing: false
   property string pairingMac: ""
   property string pairingError: ""
-  property bool paused: false
 
   readonly property bool configured: mugMac !== ""
   function normalizeUnit(v) {
@@ -131,34 +130,6 @@ BarWidget {
     }
     root.discoverError = ""
   }
-
-  function setPaused(v) {
-    v = !!v
-    if (v === root.paused) return
-    root.paused = v
-    if (v) {
-      if (bridgeProc.running) bridgeProc.running = false
-      root.bridgeReady = false
-      root.commandPending = false
-      root.pendingCommand = ""
-      restartTimer.stop()
-      responseWatchdog.stop()
-      pollTimer.stop()
-      root.connected = false
-      root.lastError = "paused — tap Resume to reconnect"
-    } else {
-      root.lastError = ""
-      root.failStreak = 0
-      restartTimer.stop()
-      responseWatchdog.stop()
-      pollTimer.start()
-      if (root.configured) {
-        root.pendingCommand = "status"
-        root.startBridge()
-      }
-    }
-  }
-  function togglePaused() { root.setPaused(!root.paused) }
 
   function runDiscover(useScan) {
     if (root.discovering) return
@@ -258,7 +229,6 @@ BarWidget {
   }
 
   function startBridge() {
-    if (root.paused) return
     if (bridgeProc.running || !root.configured) return
     bridgeProc.command = ["python3", root.scriptPath(), "repl", "--mac", root.mugMac]
     bridgeProc.running = true
@@ -430,7 +400,7 @@ BarWidget {
       root.commandPending = false
       root.pendingCommand = ""
       if (exitCode !== 0 && root.lastError === "") root.lastError = "bridge exited " + exitCode
-      if (root.configured && !root.paused) restartTimer.restart()
+      if (root.configured) restartTimer.restart()
     }
   }
 
@@ -438,7 +408,7 @@ BarWidget {
   Timer {
     id: pollTimer
     interval: root.pollIntervalSec * 1000
-    running: !root.paused
+    running: true
     repeat: true
     triggeredOnStart: true
     onTriggered: root.refresh()
@@ -455,7 +425,7 @@ BarWidget {
       root.lastError = "bridge unresponsive"
       if (root.failStreak >= 2) root.connected = false
       if (bridgeProc.running) bridgeProc.running = false
-      if (root.configured && !root.paused) restartTimer.restart()
+      if (root.configured) restartTimer.restart()
     }
   }
 
@@ -463,7 +433,6 @@ BarWidget {
     id: restartTimer
     interval: 5000
     onTriggered: {
-      if (root.paused) return
       if (root.configured && !bridgeProc.running) {
         if (root.pendingCommand === "") root.pendingCommand = "status"
         root.startBridge()
@@ -477,9 +446,8 @@ BarWidget {
     id: bluetoothRetryTimer
     interval: 2000
     repeat: true
-    running: !root.paused && ((String(root.lastError || "").indexOf("Bluetooth is off") !== -1) || (String(root.discoverError || "").indexOf("Bluetooth is off") !== -1))
+    running: (String(root.lastError || "").indexOf("Bluetooth is off") !== -1) || (String(root.discoverError || "").indexOf("Bluetooth is off") !== -1)
     onTriggered: {
-      if (root.paused) return
       if (root.configured) {
         if (!root.connected) root.refresh()
       } else {

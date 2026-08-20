@@ -433,52 +433,9 @@ Panel {
           }
         }
 
-        // ---- Pause / resume (frees BT for phone app)
-        Row {
-          visible: root.configured
-          width: parent.width
-          spacing: Style.space(8)
-
-          Text {
-            text: root.mug && root.mug.paused ? "Paused — phone can connect" : "Connected — tap to pause for phone"
-            color: Qt.darker(root.bar.foreground, 1.4)
-            font.family: root.bar.fontFamily
-            font.pixelSize: Style.font.bodySmall
-            font.italic: true
-            anchors.verticalCenter: parent.verticalCenter
-            width: parent.width - pauseBtn.width - parent.spacing
-            wrapMode: Text.WordWrap
-            elide: Text.ElideRight
-          }
-
-          Rectangle {
-            id: pauseBtn
-            anchors.verticalCenter: parent.verticalCenter
-            width: root.mug && root.mug.paused ? 68 : 58
-            height: 26
-            radius: 6
-            color: root.mug && root.mug.paused ? Color.accent : Qt.rgba(root.bar.foreground.r, root.bar.foreground.g, root.bar.foreground.b, 0.08)
-            border.width: root.mug && root.mug.paused ? 0 : 1
-            border.color: Qt.rgba(root.bar.foreground.r, root.bar.foreground.g, root.bar.foreground.b, 0.15)
-            Text {
-              anchors.centerIn: parent
-              text: root.mug && root.mug.paused ? "Resume" : "Pause"
-              color: root.mug && root.mug.paused ? (root.bar ? Style.selectedStateColor(root.bar.foreground, Color.accent) : "white") : root.bar.foreground
-              font.family: root.bar.fontFamily
-              font.pixelSize: Style.font.bodySmall
-              font.bold: true
-            }
-            MouseArea {
-              anchors.fill: parent
-              cursorShape: Qt.PointingHandCursor
-              onClicked: if (root.mug && root.mug.togglePaused) root.mug.togglePaused()
-            }
-          }
-        }
-
         // ---- Status footer (only when a MAC is configured but offline).
         Text {
-          visible: root.configured && !root.connected && !(root.mug && root.mug.paused)
+          visible: root.configured && !root.connected
           width: parent.width
           text: {
             var e = String(root.lastError || "")
