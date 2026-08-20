@@ -298,6 +298,23 @@ BarWidget {
     injectPanel()
   }
 
+  onMugMacChanged: {
+    // MAC edited in shell.json — drop the old GATT link and reconnect to the new device.
+    if (bridgeProc.running) bridgeProc.running = false
+    root.pendingCommand = ""
+    root.commandPending = false
+    root.bridgeReady = false
+    root.connected = false
+    root.lastError = ""
+    if (root.configured) {
+      root.pendingCommand = "status"
+      root.startBridge()
+    } else {
+      restartTimer.stop()
+      responseWatchdog.stop()
+    }
+  }
+
   Loader {
     id: panelLoader
     active: true

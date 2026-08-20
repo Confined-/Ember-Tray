@@ -156,8 +156,12 @@ def write_char(bus, chrc_path, data):
             {"type": "command", **options},
             timeout=WATCHDOG_SECONDS * 1000,
         )
-    except dbus.exceptions.DBusException:
-        # Fall back to a normal write request for firmware that wants it.
+    except dbus.exceptions.DBusException as exc:
+        # Only fall back if the write type itself is unsupported; a
+        # "NotConnected" or ATT error here should surface immediately.
+        msg = str(exc)
+        if "NotSupported" not in msg and "not supported" not in msg.lower():
+            raise
         iface.WriteValue(
             dbus.ByteArray(data),
             {"type": "request", **options},
