@@ -378,31 +378,19 @@ Panel {
                     }
                   }
 
-                  Rectangle {
+                  Button {
                     id: useBtn
                     anchors.verticalCenter: parent.verticalCenter
-                    width: 56
+                    width: 60
                     height: 28
-                    radius: 6
-                    color: Color.accent
-                    opacity: root.mug && root.mug.pairing && root.mug.pairingMac === modelData.mac ? 0.6 : 1.0
-                    Text {
-                      anchors.centerIn: parent
-                      text: root.mug && root.mug.pairing && root.mug.pairingMac === modelData.mac ? "…" : (modelData.paired ? "Use" : "Pair")
-                      color: root.bar ? Style.selectedStateColor(root.bar.foreground, Color.accent) : "white"
-                      font.family: root.bar.fontFamily
-                      font.pixelSize: Style.font.bodySmall
-                      font.bold: true
-                    }
-                    MouseArea {
-                      anchors.fill: parent
-                      enabled: !(root.mug && root.mug.pairing)
-                      cursorShape: Qt.PointingHandCursor
-                      onClicked: {
-                        if (!root.mug) return
-                        if (root.mug.useDiscoveredDevice) root.mug.useDiscoveredDevice(modelData.mac, modelData.paired)
-                        else if (root.mug.setDiscoveredMac) root.mug.setDiscoveredMac(modelData.mac)
-                      }
+                    text: root.mug && root.mug.pairing && root.mug.pairingMac === modelData.mac ? "…" : (modelData.paired ? "Use" : "Pair")
+                    fontSize: Style.font.bodySmall
+                    selected: true
+                    enabled: !(root.mug && root.mug.pairing)
+                    onClicked: {
+                      if (!root.mug) return
+                      if (root.mug.useDiscoveredDevice) root.mug.useDiscoveredDevice(modelData.mac, modelData.paired)
+                      else if (root.mug.setDiscoveredMac) root.mug.setDiscoveredMac(modelData.mac)
                     }
                   }
                 }
