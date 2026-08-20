@@ -39,10 +39,8 @@ omarchy plugin add https://github.com/Confined-/Ember-Tray.git --enable
 omarchy plugin remove confined-.ember
 ```
 
-This removes the plugin and its bar-widget entry. Any `mac`, `unit`, or
-`pollIntervalSec` values you set stay behind in the widget's entry in
-`~/.config/omarchy/shell.json` — delete that entry by hand if you want them
-gone too.
+This removes the plugin and its bar-widget entry from `~/.config/omarchy/shell.json`
+(and the plugin folder). No leftover `mac`/`unit` entry remains.
 
 ## Pair the mug
 
