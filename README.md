@@ -14,12 +14,16 @@ omarchy plugin add https://github.com/Confined-/Ember-Tray.git --enable
 
 Pair via the Bluetooth tray icon, or via this panel: tap **Scan nearby** to discover the mug, then tap **Use** — it pairs automatically.
 
+> **First pairing:** The mug must be in pairing mode. If it was ever paired to a phone or another PC, reset it first: pick it up, hold the bottom button ~15 s until it blinks blue → yellow → red, let go, wait for white pulse — pulsing white means it’s discoverable. Then hit **Scan nearby**.
+
 Open the tray panel after pairing:
 
 - One paired mug → connects automatically.
 - Several mugs → tap **Use** on the one you want.
 
 If the phone app is connected, disconnect it first.
+
+If the mug still won’t appear after reset, forget *Ember Ceramic Mug* in Bluetooth settings and try **Scan nearby** again — [official instructions](https://support.ember.com/en-US/ember-mug-how-to-reset-1757480).
 
 **Pairing via the panel:**
 
@@ -30,8 +34,6 @@ If the phone app is connected, disconnect it first.
 2. Tap **Pair** (or **Use** if already paired) on the found mug — it connects and shows the temperature.
 
    ![Connected](pairing-connected.png)
-
-**Reset** if the mug won’t appear: pick it up, hold the bottom button ~15 s until it blinks blue → yellow → red, let go, wait for white pulse, then forget *Ember Ceramic Mug* in Bluetooth settings and pair again — [official instructions](https://support.ember.com/en-US/ember-mug-how-to-reset-1757480).
 
 ## Use
 
