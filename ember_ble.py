@@ -116,7 +116,9 @@ def parse_target_value(value_str):
         raise ValueError("invalid temperature: not a number") from None
     if not math.isfinite(v):
         raise ValueError("invalid temperature: not finite")
-    if v == 0:
+    # Heater off is 0; treat any non-positive as off for robustness
+    # (older QML sent -17.78 for 0°F due to toCelsius(0)).
+    if v <= 0:
         return 0
     # Allow a tiny epsilon outside the exact 48.888-62.777 band
     if not (48.0 <= v <= 63.0):

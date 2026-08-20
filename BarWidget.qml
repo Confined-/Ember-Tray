@@ -340,7 +340,8 @@ BarWidget {
       return
     }
     root.pendingSetTemp = ""
-    root.request("set-temp " + root.toCelsius(displayValue).toFixed(2))
+    if (displayValue === 0) root.request("set-temp 0")
+    else root.request("set-temp " + root.toCelsius(displayValue).toFixed(2))
   }
 
   // ---- Discovery process (one-shot) ----
