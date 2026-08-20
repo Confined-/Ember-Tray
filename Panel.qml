@@ -63,15 +63,23 @@ Panel {
   readonly property bool sliderDragging: tempSlider ? tempSlider.dragging : false
   readonly property bool settingTarget: mug ? (mug.settingTarget === true) : false
   property real sliderPreviewRaw: root.tempToRaw(root.sliderTarget)
+  // Debounce tiny GATT jitter so the knob doesn't drift a few pixels on every poll.
+  property real _stableRaw: root.tempToRaw(root.sliderTarget)
+  function _updateStableRaw() {
+    var raw = root.tempToRaw(root.sliderTarget)
+    if (Math.abs(raw - root._stableRaw) > 0.4) root._stableRaw = raw
+    else if (root._stableRaw === 0 && raw !== 0) root._stableRaw = raw
+  }
+  onSliderTargetChanged: _updateStableRaw()
   // PanelSlider's `value` drives the knob after a drag, so it must NOT change
   // when `dragging` flips: its onValueChanged resets liveValue, which would
   // clobber the release position and snap the slider back to the old target.
   readonly property real sliderValue: root.settingTarget
     ? root.sliderPreviewRaw
-    : root.tempToRaw(root.sliderTarget)
+    : root._stableRaw
   readonly property real displayRaw: (root.sliderDragging || root.settingTarget)
     ? root.sliderPreviewRaw
-    : root.tempToRaw(root.sliderTarget)
+    : root._stableRaw
   readonly property real displayedTarget: root.roundTemp(root.rawToTemp(root.displayRaw))
 
   function open() {

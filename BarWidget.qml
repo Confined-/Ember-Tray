@@ -227,15 +227,22 @@ BarWidget {
   function applyState(data) {
     root.connected = true
     root.failStreak = 0
-    root.currentTemp = root.num(data.currentTemp, 0)
-    root.targetTemp = root.num(data.targetTemp, 0)
+    // Deadband tiny GATT read jitter so the slider doesn't drift a few pixels
+    // on every poll when the set-point is otherwise stable.
+    var newCurrent = root.num(data.currentTemp, 0)
+    if (Math.abs(newCurrent - root.currentTemp) > 0.05) root.currentTemp = newCurrent
+    else if (root.currentTemp === 0 && newCurrent !== 0) root.currentTemp = newCurrent
+    var newTarget = root.num(data.targetTemp, 0)
+    var newHeater = data.heaterOn === true
+    if (Math.abs(newTarget - root.targetTemp) > 0.05 || newHeater !== root.heaterOn) root.targetTemp = newTarget
+    else if (root.targetTemp === 0 && newTarget !== 0) root.targetTemp = newTarget
     root.battery = root.num(data.battery, 0)
     root.charging = data.charging === true
     root.liquidState = String(data.liquidState || "")
     // liquidCode 0 (Standby) is a valid state; only a missing value is -1.
     root.liquidCode = root.num(data.liquidCode, -1)
     // The bridge always reports heaterOn; missing/undefined means off.
-    root.heaterOn = data.heaterOn === true
+    root.heaterOn = newHeater
     root.mugUnit = data.unit === "F" ? "F" : "C"
     root.lastError = ""
   }
