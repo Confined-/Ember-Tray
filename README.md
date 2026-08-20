@@ -33,8 +33,6 @@ If the mug still won’t appear after reset, forget *Ember Ceramic Mug* in Bluet
 
 2. Tap **Pair** (or **Use** if already paired) on the found mug — it connects and shows the temperature.
 
-   ![Connected](pairing-connected.png)
-
 ## Use
 
 - Click the tray icon to open the panel.
