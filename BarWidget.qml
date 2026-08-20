@@ -62,7 +62,7 @@ BarWidget {
       var e = String(root.lastError || "offline")
       if (e.indexOf("Bluetooth is off") !== -1) return e
       if (e.indexOf("Mug not in range") !== -1) return e
-      return "Ember mug: " + e
+      return "Mug offline"
     }
     return "Mug " + root.battery + "%" + (root.charging ? " ⚡" : "") + " • " + root.liquidState
   }

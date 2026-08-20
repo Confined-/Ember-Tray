@@ -438,10 +438,10 @@ Panel {
           visible: root.configured && !root.connected
           width: parent.width
           text: {
-            var e = String(root.lastError || "not reachable")
+            var e = String(root.lastError || "")
             if (e.indexOf("Bluetooth is off") !== -1) return e
             if (e.indexOf("Mug not in range") !== -1) return e
-            return "Mug offline — " + e
+            return "Mug offline"
           }
           color: Qt.darker(root.bar.foreground, 1.4)
           font.family: root.bar.fontFamily
