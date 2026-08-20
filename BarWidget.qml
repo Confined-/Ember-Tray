@@ -356,7 +356,6 @@ BarWidget {
     if (!root.configured) return
     displayValue = Number(displayValue)
     if (!isFinite(displayValue)) return
-    if (displayValue !== 0 && (displayValue < root.minTemp - 0.01 || displayValue > root.maxTemp + 0.01)) return
     if (root.commandPending) {
       root.pendingSetTemp = displayValue
       return
