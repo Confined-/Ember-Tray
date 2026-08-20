@@ -1,11 +1,11 @@
-# Ember Mug
+# Ember-Tray
 
 > This plugin's code was written with the help of an AI assistant and has been
 > reviewed; the D-Bus/BlueZ bridge is small and only talks to a device you have
 > paired yourself.
 
 Monitor and control an [Ember smart mug](https://ember.com/) from the Omarchy
-bar: current temperature, battery level, liquid state, and target temperature
+tray: current temperature, battery level, liquid state, and target temperature
 control.
 
 ## Features

@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
   "id": "confined-.ember",
-  "name": "Ember Mug",
+  "name": "Ember-Tray",
   "version": "1.0.0",
   "author": "Confined",
   "license": "MIT",
-  "description": "Monitor and control an Ember smart mug: current temperature, battery level, and target temperature.",
+  "description": "Monitor and control an Ember smart mug from the tray: current temperature, battery level, and target temperature.",
   "kinds": [
     "bar-widget"
   ],
@@ -13,8 +13,8 @@
     "barWidget": "BarWidget.qml"
   },
   "barWidget": {
-    "displayName": "Ember Mug",
-    "description": "Current temperature, battery level, and target temperature control for an Ember smart mug.",
+    "displayName": "Ember-Tray",
+    "description": "Current temperature, battery level, and target temperature control for an Ember smart mug — lives in your tray.",
     "category": "Utilities",
     "allowMultiple": false,
     "defaultSection": "right",

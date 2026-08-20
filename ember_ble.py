@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Ember mug BLE bridge for the Omarchy ember plugin.
+"""Ember mug BLE bridge for the Omarchy Ember-Tray plugin.
 
 Talks to a paired Ember mug over BlueZ GATT directly through D-Bus using
 dbus-python (already installed on Omarchy). No pip packages are needed.
