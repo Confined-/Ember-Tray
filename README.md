@@ -89,7 +89,10 @@ fresh install the panel auto-discovers a paired mug and you pick it with a tap.
 
 Until `mac` is set, the bar widget just shows the mug icon and its tooltip
 says the mug is not configured; opening the panel shows the discovery picker
-(**Scan** for paired mugs, **Scan nearby** for unpaired advertisers).
+(**Scan** for paired mugs, **Scan nearby** for unpaired advertisers). A freshly
+paired mug is kept **off** until you pick a temperature — even though the
+firmware defaults to ~135 °F on reset, the widget turns the heater off on first
+connect for safety.
 
 | Setting               | Default | Meaning                                             |
 |-----------------------|---------|-----------------------------------------------------|
