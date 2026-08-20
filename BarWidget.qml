@@ -29,7 +29,7 @@ BarWidget {
   property int failStreak: 0
   property var pendingSetTemp: ""
   readonly property bool settingTarget: root.commandPending || root.pendingSetTemp !== ""
-  // ---- Discovery (picker + scan fallback; no auto-off) ----
+  // ---- Discovery (picker + scan fallback) ----
   property var discoveredDevices: []
   property bool discovering: false
   property string discoverError: ""
@@ -37,6 +37,7 @@ BarWidget {
   property bool pairing: false
   property string pairingMac: ""
   property string pairingError: ""
+  property bool pendingFirstRunOff: false
 
   readonly property bool configured: mugMac !== ""
   function normalizeUnit(v) {
@@ -129,6 +130,10 @@ BarWidget {
       })
     }
     root.discoverError = ""
+    // Freshly paired mugs come up at the firmware default (~135°F) with
+    // the heater on; keep them off until the user explicitly picks a target
+    // (explicit Use/Pair is the onboarding confirmation).
+    root.pendingFirstRunOff = true
   }
 
   function runDiscover(useScan) {
@@ -303,10 +308,27 @@ BarWidget {
     root.commandPending = false
     responseWatchdog.stop()
     if (data.ok !== undefined) {
-      if (data.ok === true) root.applyState(data)
-      else root.lastError = String(data.error || "set failed")
+      if (data.ok === true) {
+        root.applyState(data)
+        if (root.pendingFirstRunOff) {
+          root.pendingFirstRunOff = false
+          if (data.heaterOn === true || (typeof data.targetTemp === "number" && data.targetTemp > 0)) {
+            root.deferNext()
+            root.request("set-temp 0")
+            return
+          }
+        }
+      } else root.lastError = String(data.error || "set failed")
     } else if (data.connected === true) {
       root.applyState(data)
+      if (root.pendingFirstRunOff) {
+        root.pendingFirstRunOff = false
+        if (data.heaterOn === true || (typeof data.targetTemp === "number" && data.targetTemp > 0)) {
+          root.deferNext()
+          root.request("set-temp 0")
+          return
+        }
+      }
     } else {
       // A single transient miss shouldn't flash the mug offline; only flip
       // state on consecutive failures.

@@ -39,7 +39,7 @@ If the mug still won’t appear after reset, forget *Ember Ceramic Mug* in Bluet
 - Tap the large temperature to switch °F/°C.
 - Drag the slider to set the target — far left is **Off**.
 
-No config files to edit.
+No config files to edit. A freshly paired mug is kept off until you pick a temperature (it would otherwise default to ~135 °F).
 
 ## Configure
 
