@@ -164,7 +164,7 @@ Panel {
               font.family: root.bar.fontFamily
               font.pixelSize: Style.font.display
               anchors.top: tempBig.top
-              anchors.topMargin: Style.space(8)
+              anchors.topMargin: Style.space(4)
             }
           }
 
