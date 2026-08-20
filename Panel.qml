@@ -264,13 +264,188 @@ Panel {
           }
         }
 
-        // ---- Status footer.
-        Text {
-          visible: !root.connected
+        // ---- Discovery (when not configured: auto-pick paired mug, else picker + scan fallback).
+        Column {
+          visible: !root.configured
           width: parent.width
-          text: !root.configured
-            ? "Mug not configured — set its MAC in the plugin settings."
-            : "Mug offline — " + (root.lastError || "not reachable")
+          spacing: Style.space(8)
+
+          Text {
+            width: parent.width
+            text: "No mug configured"
+            color: root.bar.foreground
+            font.family: root.bar.fontFamily
+            font.pixelSize: Style.font.body
+            font.bold: true
+            wrapMode: Text.WordWrap
+          }
+
+          Text {
+            visible: root.mug && root.mug.discovering
+            width: parent.width
+            text: "Scanning for Ember mugs…"
+            color: Qt.darker(root.bar.foreground, 1.4)
+            font.family: root.bar.fontFamily
+            font.pixelSize: Style.font.bodySmall
+            font.italic: true
+            wrapMode: Text.WordWrap
+          }
+
+          Text {
+            visible: root.mug && !root.mug.discovering && root.mug.discoverError !== ""
+            width: parent.width
+            text: root.mug ? root.mug.discoverError : ""
+            color: Qt.darker(root.bar.foreground, 1.4)
+            font.family: root.bar.fontFamily
+            font.pixelSize: Style.font.bodySmall
+            wrapMode: Text.WordWrap
+          }
+
+          Text {
+            visible: root.mug && !root.mug.discovering && root.mug.discoverError === "" && root.mug.discoveredDevices.length === 0
+            width: parent.width
+            text: "No Ember mugs found. Pair the mug in Bluetooth settings first, then hit Scan — or set the MAC manually in shell.json."
+            color: Qt.darker(root.bar.foreground, 1.4)
+            font.family: root.bar.fontFamily
+            font.pixelSize: Style.font.bodySmall
+            wrapMode: Text.WordWrap
+          }
+
+          Column {
+            visible: root.mug && !root.mug.discovering && root.mug.discoveredDevices.length > 0
+            width: parent.width
+            spacing: Style.space(6)
+
+            Text {
+              width: parent.width
+              text: root.mug && root.mug.discoveredDevices.length === 1
+                ? "Found 1 mug — tap Use to configure:"
+                : "Found " + (root.mug ? root.mug.discoveredDevices.length : 0) + " mugs — pick one:"
+              color: Qt.darker(root.bar.foreground, 1.4)
+              font.family: root.bar.fontFamily
+              font.pixelSize: Style.font.bodySmall
+              wrapMode: Text.WordWrap
+            }
+
+            Repeater {
+              model: root.mug ? root.mug.discoveredDevices : []
+              delegate: Rectangle {
+                width: parent.width
+                height: 44
+                radius: 8
+                color: Qt.rgba(root.bar.foreground.r, root.bar.foreground.g, root.bar.foreground.b, 0.07)
+                border.width: 1
+                border.color: Qt.rgba(root.bar.foreground.r, root.bar.foreground.g, root.bar.foreground.b, 0.12)
+
+                Row {
+                  anchors.fill: parent
+                  anchors.margins: Style.space(8)
+                  spacing: Style.space(8)
+
+                  Column {
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: parent.width - useBtn.width - parent.spacing
+                    spacing: 2
+
+                    Text {
+                      width: parent.width
+                      text: (modelData.name || "Ember Mug") + (modelData.paired ? " • paired" : " • not paired")
+                      color: root.bar.foreground
+                      font.family: root.bar.fontFamily
+                      font.pixelSize: Style.font.bodySmall
+                      font.bold: true
+                      elide: Text.ElideRight
+                    }
+                    Text {
+                      width: parent.width
+                      text: modelData.mac || ""
+                      color: Qt.darker(root.bar.foreground, 1.4)
+                      font.family: root.bar.fontFamily
+                      font.pixelSize: Style.font.bodySmall - 1
+                      elide: Text.ElideRight
+                    }
+                  }
+
+                  Rectangle {
+                    id: useBtn
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: 56
+                    height: 28
+                    radius: 6
+                    color: Color.accent
+                    Text {
+                      anchors.centerIn: parent
+                      text: "Use"
+                      color: "white"
+                      font.family: root.bar.fontFamily
+                      font.pixelSize: Style.font.bodySmall
+                      font.bold: true
+                    }
+                    MouseArea {
+                      anchors.fill: parent
+                      cursorShape: Qt.PointingHandCursor
+                      onClicked: if (root.mug && root.mug.setDiscoveredMac) root.mug.setDiscoveredMac(modelData.mac)
+                    }
+                  }
+                }
+              }
+            }
+          }
+
+          Row {
+            visible: root.mug && !root.mug.discovering
+            width: parent.width
+            spacing: Style.space(8)
+
+            Rectangle {
+              width: 86
+              height: 28
+              radius: 6
+              color: Qt.rgba(root.bar.foreground.r, root.bar.foreground.g, root.bar.foreground.b, 0.08)
+              border.width: 1
+              border.color: Qt.rgba(root.bar.foreground.r, root.bar.foreground.g, root.bar.foreground.b, 0.15)
+              Text {
+                anchors.centerIn: parent
+                text: "Scan"
+                color: root.bar.foreground
+                font.family: root.bar.fontFamily
+                font.pixelSize: Style.font.bodySmall
+              }
+              MouseArea {
+                anchors.fill: parent
+                cursorShape: Qt.PointingHandCursor
+                onClicked: if (root.mug && root.mug.runDiscover) root.mug.runDiscover(false)
+              }
+            }
+
+            Rectangle {
+              width: 128
+              height: 28
+              radius: 6
+              color: Qt.rgba(root.bar.foreground.r, root.bar.foreground.g, root.bar.foreground.b, 0.08)
+              border.width: 1
+              border.color: Qt.rgba(root.bar.foreground.r, root.bar.foreground.g, root.bar.foreground.b, 0.15)
+              Text {
+                anchors.centerIn: parent
+                text: "Scan nearby"
+                color: root.bar.foreground
+                font.family: root.bar.fontFamily
+                font.pixelSize: Style.font.bodySmall
+              }
+              MouseArea {
+                anchors.fill: parent
+                cursorShape: Qt.PointingHandCursor
+                onClicked: if (root.mug && root.mug.runDiscover) root.mug.runDiscover(true)
+              }
+            }
+          }
+        }
+
+        // ---- Status footer (only when a MAC is configured but offline).
+        Text {
+          visible: root.configured && !root.connected
+          width: parent.width
+          text: "Mug offline — " + (root.lastError || "not reachable")
           color: Qt.darker(root.bar.foreground, 1.4)
           font.family: root.bar.fontFamily
           font.pixelSize: Style.font.bodySmall

@@ -16,6 +16,9 @@ control.
   the far-left of the slider is **Off**.
 - No extra packages — the plugin talks to the mug over BlueZ GATT directly
   through D-Bus using the already-installed `dbus-python`.
+- **Auto-discovery** — on a fresh install the panel finds your already-paired
+  Ember mug and configures its MAC automatically; if several mugs are nearby a
+  picker lets you choose, with a “Scan nearby” fallback for unpaired advertisers.
 
 ## Dependencies
 
@@ -43,7 +46,10 @@ gone too.
 
 ## Pair the mug
 
-The mug must be paired to your machine before the plugin can reach it.
+The mug must be paired to your machine before the plugin can reach it. Once
+paired, a fresh install auto-discovers it — just open the panel and it will
+offer the mug (or auto-configure if only one paired Ember is found). No need to
+copy a MAC into `shell.json` by hand.
 
 ```sh
 bluetoothctl
@@ -52,6 +58,12 @@ scan on
 pair AA:BB:CC:DD:EE:FF
 trust AA:BB:CC:DD:EE:FF
 ```
+
+If you paired the mug before installing the plugin, simply open the panel after
+install — the widget will list the paired mug(s) and a **Use** button. If the
+mug is nearby but not yet paired, use **Scan nearby** in that same panel (or
+`ember_ble.py discover --scan`) to find unpaired advertisers, then `pair`/`trust`
+as above and hit **Scan** again.
 
 If the mug is currently connected to the Ember phone app, the two will fight
 over the connection — disconnect it from the app (or turn off Bluetooth there)
@@ -72,10 +84,12 @@ If the mug won't pair or doesn't show up in `scan on`, it may need a reset
 
 Settings live inline in the widget's entry in `~/.config/omarchy/shell.json`
 (under `bar.layout.*` for the `confined-.ember` entry). Edit the file and the
-widget picks the changes up on the next reload:
+widget picks the changes up on the next reload — but you rarely need to: on a
+fresh install the panel auto-discovers a paired mug and you pick it with a tap.
 
 Until `mac` is set, the bar widget just shows the mug icon and its tooltip
-says the mug is not configured.
+says the mug is not configured; opening the panel shows the discovery picker
+(**Scan** for paired mugs, **Scan nearby** for unpaired advertisers).
 
 | Setting               | Default | Meaning                                             |
 |-----------------------|---------|-----------------------------------------------------|
@@ -114,7 +128,8 @@ Temperatures are sent as a uint16 little-endian value in hundredths of a
 degree Celsius. The widget keeps a single long-lived `ember_ble.py repl --mac …`
 process connected to the mug so the link isn't torn down after every poll
 (Ember firmware is sensitive to that), and feeds it one `status` / `set-temp`
-command per line.
+command per line. `ember_ble.py discover [--scan]` lists nearby Ember mugs (paired
+first, strongest RSSI first) for the panel picker and auto-pick.
 
 ## Caveats
 

@@ -29,6 +29,11 @@ BarWidget {
   property int failStreak: 0
   property var pendingSetTemp: ""
   readonly property bool settingTarget: root.commandPending || root.pendingSetTemp !== ""
+  // ---- Discovery (auto-pick paired mug, picker + scan fallback) ----
+  property var discoveredDevices: []
+  property bool discovering: false
+  property string discoverError: ""
+  property bool hasTriedScan: false
 
   readonly property bool configured: mugMac !== ""
   property string unitPreference: String(setting("unit", "") || "").toUpperCase()
@@ -88,6 +93,72 @@ BarWidget {
     root.settings = entry
     if (root.bar && root.bar.shell && typeof root.bar.shell.updateEntryInline === "function")
       root.bar.shell.updateEntryInline(root.moduleName, entry)
+  }
+
+  function setDiscoveredMac(mac) {
+    mac = String(mac || "").trim().toUpperCase()
+    if (!mac) return
+    var entry = { id: root.moduleName }
+    for (var key in root.settings) if (key !== "id") entry[key] = root.settings[key]
+    entry.mac = mac
+    root.settings = entry
+    if (root.bar && root.bar.shell && typeof root.bar.shell.updateEntryInline === "function")
+      root.bar.shell.updateEntryInline(root.moduleName, entry)
+    else if (root.bar && root.bar.shell && typeof root.bar.shell.mutateShellConfig === "function") {
+      // Fallback for older shell — mirror setUnitPref's old path.
+      root.bar.shell.mutateShellConfig(function(config) {
+        var layout = config.bar && config.bar.layout
+        if (!layout) return
+        ;["left", "center", "right"].forEach(function(region) {
+          var entries = layout[region]
+          if (!Array.isArray(entries)) return
+          for (var i = 0; i < entries.length; i++) if (entries[i] && entries[i].id === root.moduleName) entries[i].mac = mac
+        })
+      })
+    }
+    root.discoverError = ""
+  }
+
+  function runDiscover(useScan) {
+    if (root.discovering) return
+    root.discovering = true
+    root.discoverError = ""
+    var cmd = ["python3", root.scriptPath(), "discover"]
+    if (useScan) { cmd.push("--scan"); cmd.push("--timeout"); cmd.push("6") }
+    discoverProc.command = cmd
+    discoverProc.running = true
+  }
+
+  function onDiscoverFinished(text) {
+    var raw = String(text || "").trim()
+    root.discovering = false
+    if (!raw) {
+      root.discoveredDevices = []
+      root.discoverError = "no response from discover"
+      return
+    }
+    var data
+    try { data = JSON.parse(raw) } catch (e) { root.discoverError = "bad response from discover"; root.discoveredDevices = []; return }
+    if (data && typeof data === "object" && !Array.isArray(data) && data.error) {
+      root.discoverError = String(data.error)
+      root.discoveredDevices = []
+      return
+    }
+    if (!Array.isArray(data)) data = []
+    root.discoveredDevices = data
+    root.discoverError = ""
+    if (data.length === 0) {
+      if (!root.hasTriedScan && !root.configured) {
+        root.hasTriedScan = true
+        // Fallback: actively scan for nearby unpaired advertisers.
+        root.runDiscover(true)
+      }
+      return
+    }
+    if (data.length === 1 && data[0].paired) {
+      // Single paired mug — auto-pick so a fresh install just works after pairing.
+      root.setDiscoveredMac(data[0].mac)
+    }
   }
 
   function injectPanel() {
@@ -216,6 +287,22 @@ BarWidget {
     root.request("set-temp " + root.toCelsius(displayValue).toFixed(2))
   }
 
+  // ---- Discovery process (one-shot) ----
+  Process {
+    id: discoverProc
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.onDiscoverFinished(text)
+    }
+    onExited: function(exitCode) {
+      if (exitCode !== 0 && root.discovering) {
+        // Keep whatever onStreamFinished parsed; only note a hard failure.
+        if (root.discoveredDevices.length === 0 && root.discoverError === "") root.discoverError = "discover exited " + exitCode
+        root.discovering = false
+      }
+    }
+  }
+
   // ---- Persistent bridge process ----
   Process {
     id: bridgeProc
@@ -285,6 +372,10 @@ BarWidget {
     if (root.configured) {
       root.pendingCommand = "status"
       root.startBridge()
+    } else {
+      // Fresh install — try to auto-pick a paired Ember mug, otherwise show the picker.
+      root.hasTriedScan = false
+      root.runDiscover(false)
     }
   }
 
@@ -312,6 +403,10 @@ BarWidget {
     } else {
       restartTimer.stop()
       responseWatchdog.stop()
+      root.hasTriedScan = false
+      root.discoveredDevices = []
+      root.discoverError = ""
+      root.runDiscover(false)
     }
   }
 

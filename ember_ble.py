@@ -246,6 +246,96 @@ def confirm_write(bus, chrc_path, raw, attempts=6, delay=0.5):
     return None
 
 
+def find_adapter(bus):
+    manager = dbus.Interface(
+        bus.get_object("org.bluez", "/"), "org.freedesktop.DBus.ObjectManager"
+    )
+    try:
+        objects = manager.GetManagedObjects()
+    except Exception:
+        return None
+    for path, ifaces in objects.items():
+        if "org.bluez.Adapter1" in ifaces:
+            return path
+    return None
+
+
+def collect_ember_candidates(bus):
+    manager = dbus.Interface(
+        bus.get_object("org.bluez", "/"), "org.freedesktop.DBus.ObjectManager"
+    )
+    try:
+        objects = manager.GetManagedObjects()
+    except Exception as exc:
+        raise RuntimeError(f"bluez unreachable: {error(exc)}") from exc
+    candidates = []
+    for _path, ifaces in objects.items():
+        dev = ifaces.get("org.bluez.Device1")
+        if not dev:
+            continue
+        name = str(dev.get("Name", "") or "")
+        alias = str(dev.get("Alias", "") or "")
+        combined = (name + " " + alias).lower()
+        if "ember" not in combined:
+            continue
+        addr = str(dev.get("Address", "")).upper()
+        if not addr:
+            continue
+        rssi = dev.get("RSSI")
+        try:
+            rssi_val = int(rssi) if rssi is not None else None
+        except Exception:
+            rssi_val = None
+        candidates.append(
+            {
+                "mac": addr,
+                "name": name or alias,
+                "alias": alias,
+                "paired": bool(dev.get("Paired", False)),
+                "trusted": bool(dev.get("Trusted", False)),
+                "connected": bool(dev.get("Connected", False)),
+                "rssi": rssi_val,
+            }
+        )
+    # Paired first, then strongest RSSI, then MAC for stability.
+    candidates.sort(key=lambda d: (not d["paired"], -(d["rssi"] if d["rssi"] is not None else -999), d["mac"]))
+    return candidates
+
+
+def cmd_discover(args):
+    bus = dbus.SystemBus()
+    if args.scan:
+        adapter_path = find_adapter(bus)
+        if not adapter_path:
+            print(json.dumps({"error": "no bluetooth adapter found"}))
+            sys.stdout.flush()
+            return 1
+        adapter = dbus.Interface(bus.get_object("org.bluez", adapter_path), "org.bluez.Adapter1")
+        try:
+            adapter.StartDiscovery()
+        except Exception as exc:
+            msg = str(exc)
+            if "InProgress" not in msg and "Already" not in msg and "Failed" not in msg:
+                print(json.dumps({"error": f"scan start failed: {error(exc)}"}))
+                sys.stdout.flush()
+                return 1
+            # Already discovering is fine — just collect what we have.
+        time.sleep(args.timeout)
+        try:
+            adapter.StopDiscovery()
+        except Exception:
+            pass
+    try:
+        candidates = collect_ember_candidates(bus)
+    except Exception as exc:
+        print(json.dumps({"error": error(exc)}))
+        sys.stdout.flush()
+        return 1
+    print(json.dumps(candidates))
+    sys.stdout.flush()
+    return 0
+
+
 def read_state(bus, chrc, target_override=None, heater_on_override=None):
     current = parse_temp(read_char(bus, chrc["current_temp"]))
     target = (
@@ -436,12 +526,18 @@ def main():
     repl = sub.add_parser("repl")
     repl.add_argument("--mac", required=True, help="mug MAC address (AA:BB:CC:DD:EE:FF)")
 
+    discover = sub.add_parser("discover")
+    discover.add_argument("--scan", action="store_true", help="actively scan for nearby unpaired mugs")
+    discover.add_argument("--timeout", type=int, default=6, help="scan duration in seconds (with --scan)")
+
     args = parser.parse_args()
 
     if args.command == "status":
         return cmd_status(args)
     if args.command == "repl":
         return cmd_repl(args)
+    if args.command == "discover":
+        return cmd_discover(args)
     return cmd_set_temp(args)
 
 
