@@ -27,7 +27,7 @@ control.
 ## Install
 
 ```sh
-omarchy plugin add https://github.com/Confined-/ember-plugin.git --enable
+omarchy plugin add https://github.com/Confined-/Ember-Tray.git --enable
 ```
 
 ## Remove
