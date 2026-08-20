@@ -260,6 +260,44 @@ def find_adapter(bus):
     return None
 
 
+def bluetooth_off_reason(bus):
+    adapter_path = find_adapter(bus)
+    if not adapter_path:
+        return "Bluetooth is off — turn it on in Bluetooth settings"
+    try:
+        obj = bus.get_object("org.bluez", adapter_path)
+        props = dbus.Interface(obj, "org.freedesktop.DBus.Properties")
+        if not props.Get("org.bluez.Adapter1", "Powered"):
+            return "Bluetooth is off — turn it on in Bluetooth settings"
+    except Exception:
+        return "Bluetooth is off — turn it on in Bluetooth settings"
+    return None
+
+
+def not_found_reason(bus):
+    off = bluetooth_off_reason(bus)
+    if off:
+        return off
+    return "Mug not in range — is it nearby and turned on?"
+
+
+def friendly_error(exc, bus=None):
+    if bus is not None:
+        off = bluetooth_off_reason(bus)
+        if off:
+            return off
+    msg = str(exc)
+    if "NotReady" in msg or "Resource Not Ready" in msg:
+        return "Bluetooth is off — turn it on in Bluetooth settings"
+    if "NotAvailable" in msg or "not available" in msg.lower():
+        return "Mug not in range — is it nearby and turned on?"
+    if "NotConnected" in msg:
+        return "Mug not in range — is it nearby and turned on?"
+    if "DoesNotExist" in msg:
+        return "Mug not in range — is it nearby and turned on?"
+    return error(exc)
+
+
 def collect_ember_candidates(bus):
     manager = dbus.Interface(
         bus.get_object("org.bluez", "/"), "org.freedesktop.DBus.ObjectManager"
@@ -267,6 +305,9 @@ def collect_ember_candidates(bus):
     try:
         objects = manager.GetManagedObjects()
     except Exception as exc:
+        off = bluetooth_off_reason(bus)
+        if off:
+            raise RuntimeError(off) from exc
         raise RuntimeError(f"bluez unreachable: {error(exc)}") from exc
     candidates = []
     for _path, ifaces in objects.items():
@@ -304,19 +345,20 @@ def collect_ember_candidates(bus):
 
 def cmd_discover(args):
     bus = dbus.SystemBus()
+    off = bluetooth_off_reason(bus)
+    if off:
+        print(json.dumps({"error": off}))
+        sys.stdout.flush()
+        return 1
     if args.scan:
         adapter_path = find_adapter(bus)
-        if not adapter_path:
-            print(json.dumps({"error": "no bluetooth adapter found"}))
-            sys.stdout.flush()
-            return 1
         adapter = dbus.Interface(bus.get_object("org.bluez", adapter_path), "org.bluez.Adapter1")
         try:
             adapter.StartDiscovery()
         except Exception as exc:
             msg = str(exc)
             if "InProgress" not in msg and "Already" not in msg and "Failed" not in msg:
-                print(json.dumps({"error": f"scan start failed: {error(exc)}"}))
+                print(json.dumps({"error": friendly_error(exc, bus)}))
                 sys.stdout.flush()
                 return 1
             # Already discovering is fine — just collect what we have.
@@ -328,7 +370,7 @@ def cmd_discover(args):
     try:
         candidates = collect_ember_candidates(bus)
     except Exception as exc:
-        print(json.dumps({"error": error(exc)}))
+        print(json.dumps({"error": friendly_error(exc, bus)}))
         sys.stdout.flush()
         return 1
     print(json.dumps(candidates))
@@ -340,7 +382,7 @@ def cmd_pair(args):
     bus = dbus.SystemBus()
     device_path = find_device(bus, args.mac)
     if not device_path:
-        print(json.dumps({"ok": False, "error": "mug not found (is it nearby and advertising?)"}))
+        print(json.dumps({"ok": False, "error": not_found_reason(bus)}))
         sys.stdout.flush()
         return 1
     obj = bus.get_object("org.bluez", device_path)
@@ -356,11 +398,11 @@ def cmd_pair(args):
         msg = str(exc)
         # AlreadyExists / Already Paired can be treated as success
         if "AlreadyExists" not in msg and "Already paired" not in msg and "Paired" not in msg:
-            print(json.dumps({"ok": False, "error": f"pair failed: {error(exc)}"}))
+            print(json.dumps({"ok": False, "error": friendly_error(exc, bus)}))
             sys.stdout.flush()
             return 1
     except Exception as exc:
-        print(json.dumps({"ok": False, "error": f"pair failed: {error(exc)}"}))
+        print(json.dumps({"ok": False, "error": friendly_error(exc, bus)}))
         sys.stdout.flush()
         return 1
     # Trust so it auto-connects next time
@@ -368,7 +410,7 @@ def cmd_pair(args):
         props = dbus.Interface(obj, "org.freedesktop.DBus.Properties")
         props.Set("org.bluez.Device1", "Trusted", dbus.Boolean(True))
     except Exception as exc:
-        print(json.dumps({"ok": False, "error": f"trust failed: {error(exc)}"}))
+        print(json.dumps({"ok": False, "error": friendly_error(exc, bus)}))
         sys.stdout.flush()
         return 1
     print(json.dumps({"ok": True, "mac": str(args.mac).upper()}))
@@ -408,7 +450,7 @@ def cmd_status(args):
     bus = dbus.SystemBus()
     device_path = find_device(bus, args.mac)
     if not device_path:
-        emit({"connected": False, "error": "mug not found (pair it first)"})
+        emit({"connected": False, "error": not_found_reason(bus)})
         return 0
 
     device = connect_device(bus, device_path)
@@ -417,12 +459,16 @@ def cmd_status(args):
         chrc = open_mug(bus, device, device_path)
     except Exception as exc:
         clear_watchdog()
-        emit({"connected": False, "error": f"connect failed: {error(exc)}"})
+        emit({"connected": False, "error": friendly_error(exc, bus)})
         return 0
 
     if chrc is None:
         clear_watchdog()
-        emit({"connected": False, "error": "mug service not found on device"})
+        off = bluetooth_off_reason(bus)
+        if off:
+            emit({"connected": False, "error": off})
+        else:
+            emit({"connected": False, "error": "Mug not in range — is it nearby and turned on?"})
         return 0
 
     try:
@@ -430,7 +476,7 @@ def cmd_status(args):
         return 0
     except Exception as exc:
         clear_watchdog()
-        emit({"connected": False, "error": error(exc)})
+        emit({"connected": False, "error": friendly_error(exc, bus)})
         return 0
     finally:
         clear_watchdog()
@@ -444,7 +490,7 @@ def cmd_set_temp(args):
     bus = dbus.SystemBus()
     device_path = find_device(bus, args.mac)
     if not device_path:
-        emit({"ok": False, "error": "mug not found (pair it first)"})
+        emit({"ok": False, "error": not_found_reason(bus)})
         return 1
 
     device = connect_device(bus, device_path)
@@ -453,12 +499,16 @@ def cmd_set_temp(args):
         chrc = open_mug(bus, device, device_path)
     except Exception as exc:
         clear_watchdog()
-        emit({"ok": False, "error": f"connect failed: {error(exc)}"})
+        emit({"ok": False, "error": friendly_error(exc, bus)})
         return 1
 
     if chrc is None:
         clear_watchdog()
-        emit({"ok": False, "error": "target temperature characteristic not found"})
+        off = bluetooth_off_reason(bus)
+        if off:
+            emit({"ok": False, "error": off})
+        else:
+            emit({"ok": False, "error": "Mug not in range — is it nearby and turned on?"})
         return 1
 
     try:
@@ -474,7 +524,7 @@ def cmd_set_temp(args):
         return 0
     except Exception as exc:
         clear_watchdog()
-        emit({"ok": False, "error": error(exc)})
+        emit({"ok": False, "error": friendly_error(exc, bus)})
         return 1
     finally:
         clear_watchdog()
@@ -494,18 +544,22 @@ def cmd_repl(args):
     bus = dbus.SystemBus()
     device_path = find_device(bus, args.mac)
     if not device_path:
-        emit({"connected": False, "error": "mug not found (pair it first)"})
+        emit({"connected": False, "error": not_found_reason(bus)})
         return 1
 
     device = connect_device(bus, device_path)
     try:
         chrc = open_mug(bus, device, device_path)
     except Exception as exc:
-        emit({"connected": False, "error": f"connect failed: {error(exc)}"})
+        emit({"connected": False, "error": friendly_error(exc, bus)})
         return 1
 
     if chrc is None:
-        emit({"connected": False, "error": "mug service not found on device"})
+        off = bluetooth_off_reason(bus)
+        if off:
+            emit({"connected": False, "error": off})
+        else:
+            emit({"connected": False, "error": "Mug not in range — is it nearby and turned on?"})
         return 1
 
     try:
@@ -519,7 +573,11 @@ def cmd_repl(args):
                 if chrc is None:
                     chrc = open_mug(bus, device, device_path)
                     if chrc is None:
-                        emit({"connected": False, "error": "mug not reachable"})
+                        off = bluetooth_off_reason(bus)
+                        if off:
+                            emit({"connected": False, "error": off})
+                        else:
+                            emit({"connected": False, "error": "Mug not in range — is it nearby and turned on?"})
                         continue
                 if command == "status":
                     emit(read_state(bus, chrc))
@@ -541,9 +599,9 @@ def cmd_repl(args):
             except Exception as exc:
                 chrc = None
                 if command == "status":
-                    emit({"connected": False, "error": error(exc)})
+                    emit({"connected": False, "error": friendly_error(exc, bus)})
                 else:
-                    emit({"ok": False, "error": error(exc)})
+                    emit({"ok": False, "error": friendly_error(exc, bus)})
     finally:
         try:
             device.Disconnect()

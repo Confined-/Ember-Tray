@@ -58,7 +58,12 @@ BarWidget {
 
   readonly property string barTooltip: {
     if (!root.configured) return "Ember mug not configured"
-    if (!root.connected) return "Ember mug: " + (root.lastError || "offline")
+    if (!root.connected) {
+      var e = String(root.lastError || "offline")
+      if (e.indexOf("Bluetooth is off") !== -1) return e
+      if (e.indexOf("Mug not in range") !== -1) return e
+      return "Ember mug: " + e
+    }
     return "Mug " + root.battery + "%" + (root.charging ? " ⚡" : "") + " • " + root.liquidState
   }
 
