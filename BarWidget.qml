@@ -460,6 +460,22 @@ BarWidget {
     }
   }
 
+  // When Bluetooth was off, re-probe quickly after it comes back so the
+  // "Bluetooth is off" banner doesn't linger when the mug is still offline.
+  Timer {
+    id: bluetoothRetryTimer
+    interval: 2000
+    repeat: true
+    running: (String(root.lastError || "").indexOf("Bluetooth is off") !== -1) || (String(root.discoverError || "").indexOf("Bluetooth is off") !== -1)
+    onTriggered: {
+      if (root.configured) {
+        if (!root.connected) root.refresh()
+      } else {
+        if (!root.discovering) root.runDiscover(false)
+      }
+    }
+  }
+
   Component.onCompleted: {
     if (root.configured) {
       root.pendingCommand = "status"
