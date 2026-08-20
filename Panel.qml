@@ -84,7 +84,11 @@ Panel {
 
   function open() {
     root.controller.show()
-    if (root.mug && root.mug.refreshOnOpen) root.refresh()
+    if (!root.configured && root.mug && !root.mug.discovering) {
+      // Fresh install or unpaired: paired mug is found automatically, but a
+      // newly-paired mug after the initial load needs an explicit scan.
+      root.mug.runDiscover(false)
+    } else if (root.mug && root.mug.refreshOnOpen) root.refresh()
   }
 
   function close() {
@@ -400,51 +404,25 @@ Panel {
             }
           }
 
-          Row {
+          Rectangle {
             visible: root.mug && !root.mug.discovering
-            width: parent.width
-            spacing: Style.space(8)
-
-            Rectangle {
-              width: 86
-              height: 28
-              radius: 6
-              color: Qt.rgba(root.bar.foreground.r, root.bar.foreground.g, root.bar.foreground.b, 0.08)
-              border.width: 1
-              border.color: Qt.rgba(root.bar.foreground.r, root.bar.foreground.g, root.bar.foreground.b, 0.15)
-              Text {
-                anchors.centerIn: parent
-                text: "Scan"
-                color: root.bar.foreground
-                font.family: root.bar.fontFamily
-                font.pixelSize: Style.font.bodySmall
-              }
-              MouseArea {
-                anchors.fill: parent
-                cursorShape: Qt.PointingHandCursor
-                onClicked: if (root.mug && root.mug.runDiscover) root.mug.runDiscover(false)
-              }
+            width: 128
+            height: 28
+            radius: 6
+            color: Qt.rgba(root.bar.foreground.r, root.bar.foreground.g, root.bar.foreground.b, 0.08)
+            border.width: 1
+            border.color: Qt.rgba(root.bar.foreground.r, root.bar.foreground.g, root.bar.foreground.b, 0.15)
+            Text {
+              anchors.centerIn: parent
+              text: "Scan nearby"
+              color: root.bar.foreground
+              font.family: root.bar.fontFamily
+              font.pixelSize: Style.font.bodySmall
             }
-
-            Rectangle {
-              width: 128
-              height: 28
-              radius: 6
-              color: Qt.rgba(root.bar.foreground.r, root.bar.foreground.g, root.bar.foreground.b, 0.08)
-              border.width: 1
-              border.color: Qt.rgba(root.bar.foreground.r, root.bar.foreground.g, root.bar.foreground.b, 0.15)
-              Text {
-                anchors.centerIn: parent
-                text: "Scan nearby"
-                color: root.bar.foreground
-                font.family: root.bar.fontFamily
-                font.pixelSize: Style.font.bodySmall
-              }
-              MouseArea {
-                anchors.fill: parent
-                cursorShape: Qt.PointingHandCursor
-                onClicked: if (root.mug && root.mug.runDiscover) root.mug.runDiscover(true)
-              }
+            MouseArea {
+              anchors.fill: parent
+              cursorShape: Qt.PointingHandCursor
+              onClicked: if (root.mug && root.mug.runDiscover) root.mug.runDiscover(true)
             }
           }
         }
