@@ -1,31 +1,21 @@
 # Ember-Tray
 
-> This plugin's code was written with the help of an AI assistant and has been
-> reviewed; the D-Bus/BlueZ bridge is small and only talks to a device you have
-> paired yourself.
+> AI-assisted and reviewed — small D-Bus bridge to a mug you’ve paired yourself.
 
-Monitor and control an [Ember smart mug](https://ember.com/) from the Omarchy
-tray: current temperature, battery level, liquid state, and target temperature
-control.
+Monitor and control an [Ember smart mug](https://ember.com/) from the Omarchy tray: current temperature, battery, liquid state, and target temperature.
 
 ## Features
 
-- **Bar widget** with a mug icon (current temperature, battery, and liquid
-  state are in the tooltip and panel).
-- **Control panel** (click the bar widget) with a target-temperature slider;
-  the far-left of the slider is **Off**.
-- No extra packages — the plugin talks to the mug over BlueZ GATT directly
-  through D-Bus using the already-installed `dbus-python`.
-- **Auto-discovery** — on a fresh install the panel finds your already-paired
-  Ember mug and configures its MAC automatically; if several mugs are nearby a
-  picker lets you choose, with a “Scan nearby” fallback for unpaired advertisers.
+- **Bar icon** — mug glyph; tooltip shows battery/liquid. Panel shows the temperature.
+- **Panel** — tap the temperature to toggle °F/°C (persists), slider sets target (far-left = **Off**, then 120–145 °F / 48.9–62.8 °C). Off is 6% of the track, so 120 is a short nudge from Off.
+- **Auto-discovery** — paired mug found automatically when you open the panel (single mug auto-configures, multiple → picker with **Use**). **Scan nearby** finds unpaired advertisers.
+- **First-run safety** — freshly paired mugs are kept **off** until you pick a temperature (firmware defaults to ~135 °F after reset).
+- No extra packages — uses `dbus-python` + BlueZ already on Omarchy.
 
 ## Dependencies
 
-- **Python 3** with the `dbus-python` bindings (installed by default on
-  Omarchy).
-- **BlueZ** (`bluetoothd`) running, with the mug **paired** to your machine
-  (see below).
+- Python 3 + `dbus-python`
+- BlueZ (`bluetoothd`)
 
 ## Install
 
@@ -39,112 +29,64 @@ omarchy plugin add https://github.com/Confined-/Ember-Tray.git --enable
 omarchy plugin remove confined-.ember
 ```
 
-This removes the plugin and its bar-widget entry from `~/.config/omarchy/shell.json`
-(and the plugin folder). No leftover `mac`/`unit` entry remains.
+Removes the bar entry and plugin folder.
 
-## Pair the mug
-
-The mug must be paired to your machine before the plugin can reach it. Once
-paired, a fresh install auto-discovers it — just open the panel and it will
-offer the mug (or auto-configure if only one paired Ember is found). No need to
-copy a MAC into `shell.json` by hand.
+## Pair
 
 ```sh
 bluetoothctl
 scan on
-# ...find the mug (it advertises as "EMBER") and note its MAC...
 pair AA:BB:CC:DD:EE:FF
 trust AA:BB:CC:DD:EE:FF
 ```
 
-If you paired the mug before installing the plugin, simply open the panel after
-install — a single paired mug is configured automatically; multiple mugs are
-listed with a **Use** button. If the mug is nearby but not yet paired, use
-**Scan nearby** in that same panel (or `ember_ble.py discover --scan`) to find
-unpaired advertisers, then `pair`/`trust` as above and hit **Scan nearby**
-again.
+Once paired, just open the panel — no need to edit `shell.json`:
 
-If the mug is currently connected to the Ember phone app, the two will fight
-over the connection — disconnect it from the app (or turn off Bluetooth there)
-so the computer can connect.
+- Single paired mug → configured automatically.
+- Multiple paired mugs → picker, tap **Use**.
+- Unpaired nearby mug → **Scan nearby** (or `ember_ble.py discover --scan`), then `pair`/`trust` and tap **Use** / reopen panel.
 
-If the mug won't pair or doesn't show up in `scan on`, it may need a reset
-([official instructions](https://support.ember.com/en-US/ember-mug-how-to-reset-1757480)):
+If the phone app is connected, disconnect it first — it fights the computer for the link.
 
-1. Pick the mug up.
-2. Press and hold the power button for **about 15 seconds**.
-3. The LED will blink **blue, then yellow, then red** — let go once you see
-   these colors.
-4. Wait for the LED to pulse back to **white**, which confirms the reset.
-5. If the mug was paired before, "forget" the *Ember Ceramic Mug* in your
-   device's Bluetooth settings, then pair again as above.
+**Reset** if the mug won’t appear ([official](https://support.ember.com/en-US/ember-mug-how-to-reset-1757480)): pick the mug up, hold the bottom button ~15 s until LED blinks blue → yellow → red, let go, wait for white pulse, then “forget” *Ember Ceramic Mug* in Bluetooth settings and pair again.
 
 ## Configure
 
-Settings live inline in the widget's entry in `~/.config/omarchy/shell.json`
-(under `bar.layout.*` for the `confined-.ember` entry). Edit the file and the
-widget picks the changes up on the next reload — but you rarely need to: on a
-fresh install the panel auto-discovers a paired mug and you pick it with a tap.
+Rarely needed — auto-discovery handles `mac`. If you do edit `~/.config/omarchy/shell.json` (`bar.layout.*` → `confined-.ember`):
 
-Until `mac` is set, the bar widget just shows the mug icon and its tooltip
-says the mug is not configured; opening the panel auto-discovers already-paired
-mugs (single mug is configured immediately, multiples show a **Use** picker) and
-offers **Scan nearby** for unpaired advertisers. A freshly paired mug is kept
-**off** until you pick a temperature — even though the firmware defaults to
-~135 °F on reset, the widget turns the heater off on first connect for safety.
+| Setting | Default | Meaning |
+|---------|---------|---------|
+| `mac` | `""` | Auto-filled; e.g. `AA:BB:CC:DD:EE:FF` |
+| `pollIntervalSec` | `10` | Poll seconds (min 10) |
+| `unit` | `""` | `C`/`F` or mug’s setting |
+| `refreshOnOpen` | `true` | Re-read on panel open |
 
-| Setting               | Default | Meaning                                             |
-|-----------------------|---------|-----------------------------------------------------|
-| `mac`                 | (empty) | The mug's MAC address, e.g. `AA:BB:CC:DD:EE:FF`     |
-| `pollIntervalSec`     | `10`    | How often to read the mug, in seconds (min 10)      |
-| `unit`                | (empty) | `C` or `F`; empty uses the mug's own stored setting |
-| `refreshOnOpen`       | `true`  | Re-read the mug whenever the panel opens            |
+Until `mac` is set the bar shows “not configured” and the panel shows the discovery picker.
 
 ## Usage
 
-- Click the bar widget to open the control panel.
-- Drag the slider (the target label previews the temperature live while you
-  drag, and the mug is updated on release). The slider's far-left segment is
-  **Off** (writes a target of `0` and turns the heater off); the rest of the
-  track sets the temperature from 120–145 °F (48.9–62.8 °C).
-- Click the displayed temperature to toggle the display unit between
-  Fahrenheit and Celsius. The choice applies instantly and persists to the
-  `unit` setting in shell.json.
-- The widget re-reads the mug every `pollIntervalSec`, when the panel opens,
-  and on middle-click of the bar icon.
+- Click bar icon to open panel, middle-click to refresh. Polls every `pollIntervalSec` and on open.
+- Drag slider, release to set. Tap the large temperature to toggle °F/°C.
 
 ## How it works
 
-`ember_ble.py` is a small Python bridge that calls the BlueZ D-Bus API to read
-and write the mug's GATT characteristics:
+`ember_ble.py` talks BlueZ GATT directly via D-Bus:
 
-| Characteristic | UUID                                   | Read / Write |
-|----------------|----------------------------------------|--------------|
-| Current temp   | `fc540002-236c-4c94-8fa9-944a3e5353fa` | Read         |
-| Target temp    | `fc540003-236c-4c94-8fa9-944a3e5353fa` | Read/Write   |
-| Temperature unit | `fc540004-236c-4c94-8fa9-944a3e5353fa` | Read         |
-| Battery        | `fc540007-236c-4c94-8fa9-944a3e5353fa` | Read         |
-| Liquid state   | `fc540008-236c-4c94-8fa9-944a3e5353fa` | Read         |
+| Characteristic | UUID | R/W |
+|---|---|---|
+| Current temp | `fc540002-236c-4c94-8fa9-944a3e5353fa` | R |
+| Target temp | `fc540003-236c-4c94-8fa9-944a3e5353fa` | R/W |
+| Unit | `fc540004-236c-4c94-8fa9-944a3e5353fa` | R |
+| Battery | `fc540007-236c-4c94-8fa9-944a3e5353fa` | R |
+| Liquid state | `fc540008-236c-4c94-8fa9-944a3e5353fa` | R |
 
-Temperatures are sent as a uint16 little-endian value in hundredths of a
-degree Celsius. The widget keeps a single long-lived `ember_ble.py repl --mac …`
-process connected to the mug so the link isn't torn down after every poll
-(Ember firmware is sensitive to that), and feeds it one `status` / `set-temp`
-command per line. `ember_ble.py discover [--scan]` lists nearby Ember mugs (paired
-first, strongest RSSI first) for the panel picker and auto-pick.
+Temps are `uint16LE` hundredths °C. The bar keeps one long-lived `ember_ble.py repl --mac …` process (Ember firmware hates connect/disconnect churn) and sends `status` / `set-temp` lines. `discover [--scan]` lists nearby Ember mugs.
 
 ## Caveats
 
-- If writes are rejected (an ATT/insufficient-permissions error), the mug may
-  need a one-time setup in the official Ember app; the app unlocks writing on
-  the device. Some firmware versions also require a factory reset + re-pair
-  when a device has been removed from the app.
-- This project is not affiliated with Ember. "Ember" is a trademark of Ember
-  Technologies, Inc.
-- The protocol was reverse-engineered by the community
-  ([orlopau/ember-mug](https://github.com/orlopau/ember-mug)); it is unofficial
-  and may differ between firmware versions.
+- First write may need the official Ember app to unlock the GATT characteristic; after “remove from app” a factory reset + re-pair is sometimes required.
+- Not affiliated with Ember; “Ember” is a trademark of Ember Technologies, Inc. Protocol reverse-engineered ([orlopau/ember-mug](https://github.com/orlopau/ember-mug)), may vary by firmware.
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+MIT — see [LICENSE](LICENSE).
