@@ -158,6 +158,7 @@ Panel {
             Text {
               id: tempBig
               text: root.connected ? root.formatValue(root.currentTempDisplay) : "—"
+              textFormat: Text.PlainText
               color: root.bar.foreground
               font.family: root.bar.fontFamily
               font.pixelSize: Style.font.displayLarge
@@ -190,6 +191,7 @@ Panel {
 
             Text {
               text: root.connected ? root.liquidState.toUpperCase() : ""
+              textFormat: Text.PlainText
               color: Qt.darker(root.bar.foreground, 1.5)
               font.family: root.bar.fontFamily
               font.pixelSize: Style.font.bodySmall
@@ -203,6 +205,7 @@ Panel {
 
               Text {
                 text: root.battery + "%"
+                textFormat: Text.PlainText
                 color: root.bar.foreground
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.title
@@ -249,6 +252,7 @@ Panel {
               text: root.displayedTarget > 0
                 ? root.formatValue(root.displayedTarget) + "°" + root.displayUnit
                 : "OFF"
+              textFormat: Text.PlainText
               color: root.displayedTarget > 0 ? root.bar.foreground : Color.accent
               font.family: root.bar.fontFamily
               font.pixelSize: Style.font.body
@@ -307,6 +311,7 @@ Panel {
             visible: root.mug && !root.mug.discovering && root.mug.discoverError !== ""
             width: parent.width
             text: root.mug ? root.mug.discoverError : ""
+            textFormat: Text.PlainText
             color: Qt.darker(root.bar.foreground, 1.4)
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.bodySmall
@@ -362,6 +367,7 @@ Panel {
                     Text {
                       width: parent.width
                       text: (modelData.name || "Ember Mug") + (modelData.paired ? " • paired" : " • not paired")
+                      textFormat: Text.PlainText
                       color: root.bar.foreground
                       font.family: root.bar.fontFamily
                       font.pixelSize: Style.font.bodySmall
@@ -371,6 +377,7 @@ Panel {
                     Text {
                       width: parent.width
                       text: modelData.mac || ""
+                      textFormat: Text.PlainText
                       color: Qt.darker(root.bar.foreground, 1.4)
                       font.family: root.bar.fontFamily
                       font.pixelSize: Style.font.bodySmall - 1
@@ -425,6 +432,7 @@ Panel {
         Text {
           visible: root.configured && !root.connected
           width: parent.width
+          textFormat: Text.PlainText
           text: {
             var e = String(root.lastError || "")
             if (e.indexOf("Bluetooth is off") !== -1) return e
